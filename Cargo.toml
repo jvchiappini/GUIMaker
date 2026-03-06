@@ -1,0 +1,13 @@
+[package]
+name    = "gui_maker"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "gui_maker"
+path = "src/main.rs"
+
+[dependencies]
+ferrous_app = { path = "../FerrousEngine/crates/ferrous_app" }
+ferrous_gui = { path = "../FerrousEngine/crates/ferrous_gui" }
+ferrous_assets = { path = "../FerrousEngine/crates/ferrous_assets" }
