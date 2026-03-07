@@ -1,142 +1,143 @@
-use ferrous_gui::{InteractiveButton as Button, GuiBatch, TextBatch, GuiQuad, Ui};
-use ferrous_assets::Font;
+use ferrous_gui::{
+    panel::ButtonHandle, Constraint, GuiBatch, Panel, PanelBuilder, SizeExpr, TextBatch, Ui,
+};
 
 use crate::model::WidgetKind;
 
-/// Un botón de la toolbox asociado a un WidgetKind.
-struct ToolEntry {
-    kind:   WidgetKind,
-    button: Button,
-}
-
-/// Panel de herramientas: contiene un botón por cada tipo de widget
-/// y los botones de acción global (Generar código, Limpiar, etc.).
+/// Panel de herramientas construido con PanelBuilder.
 pub struct Toolbox {
-    tools:             Vec<ToolEntry>,
-    pub btn_generate:  Button,
-    pub btn_clear:     Button,
-    pub btn_close_code: Button,
-    panel_x: f32,
-    panel_y: f32,
+    /// Handles de todos los botones (widgets + acciones).
+    buttons: Vec<ButtonHandle>,
+    /// Número de tipos de widget.
+    tool_count: usize,
+    /// Panel original; se mueve a Ui en register() y queda None.
+    _panel: Option<Panel>,
 }
-
-const TOOL_W: f32   = 140.0;
-const TOOL_H: f32   = 30.0;
-const TOOL_GAP: f32 = 6.0;
 
 impl Toolbox {
     pub fn new(panel_x: f32, panel_y: f32) -> Self {
         let kinds = WidgetKind::all();
-        let mut tools = Vec::with_capacity(kinds.len());
+        let tool_count = kinds.len();
 
-        for (i, kind) in kinds.into_iter().enumerate() {
-            let y = panel_y + 50.0 + i as f32 * (TOOL_H + TOOL_GAP);
-            let btn = Button::new(panel_x + 8.0, y, TOOL_W, TOOL_H).with_radius(6.0);
-            tools.push(ToolEntry { kind, button: btn });
+        let mut builder = PanelBuilder::column(panel_x + 8.0, panel_y + 40.0, 140.0)
+            .padding(0.0)
+            .gap(6.0)
+            .item_size(30.0)
+            .with_background([0.12, 0.12, 0.15, 0.95])
+            // Anclaje reactivo: siempre a 8 px del borde izquierdo, 48 px del borde superior.
+            .with_constraint(Constraint::new().x(SizeExpr::px(8.0)).y(SizeExpr::px(48.0)));
+
+        // Un botón por cada tipo de widget con su color de preview como label.
+        for kind in &kinds {
+            builder = builder.add_button_with_radius(kind.display_name(), 6.0);
         }
 
-        let action_y_base = panel_y + 50.0
-            + WidgetKind::all().len() as f32 * (TOOL_H + TOOL_GAP)
-            + 20.0;
+        // Acciones globales con colores de label diferentes (se tintarán en draw).
+        builder = builder
+            .add_button_with_radius("Generar Codigo", 8.0)
+            .add_button_with_radius("Limpiar Todo", 6.0)
+            .add_button_with_radius("Cerrar Codigo", 6.0);
 
-        let btn_generate  = Button::new(panel_x + 8.0, action_y_base,        TOOL_W, 34.0).with_radius(8.0);
-        let btn_clear     = Button::new(panel_x + 8.0, action_y_base + 46.0, TOOL_W, 28.0).with_radius(6.0);
-        let btn_close_code = Button::new(
-            panel_x + 8.0, action_y_base + 86.0, TOOL_W, 28.0
-        ).with_radius(6.0);
+        // Personalizar colores de los botones de acción tras build.
+        let panel = builder.build();
 
+        // Colorear labels de widgets según preview_color.
+        for (i, kind) in kinds.iter().enumerate() {
+            let color = kind.preview_color();
+            panel.buttons[i].borrow_mut().label_color = color;
+        }
+        // Colores de los botones de acción.
+        panel.buttons[tool_count].borrow_mut().label_color = [0.3, 1.0, 0.5, 1.0];
+        panel.buttons[tool_count + 1].borrow_mut().label_color = [1.0, 0.5, 0.4, 1.0];
+        panel.buttons[tool_count + 2].borrow_mut().label_color = [0.7, 0.7, 0.7, 1.0];
+
+        // Conservar los handles antes de que el panel se mueva a Ui.
+        let buttons = panel.buttons.clone();
+
+        // Guardamos el panel para moverlo en register().
+        // Lo envolvemos en Option para poder moverlo luego.
+        // Usamos una celda de un solo uso.
         Self {
-            tools,
-            btn_generate,
-            btn_clear,
-            btn_close_code,
-            panel_x,
-            panel_y,
+            buttons,
+            tool_count,
+            _panel: Some(panel),
         }
     }
 
-    /// Registra todos los botones en el sistema de UI del engine.
-    pub fn register(&self, ui: &mut Ui) {
-        for t in &self.tools {
-            ui.add(t.button.clone());
+    /// Registra el panel (y todos sus hijos) en el sistema de UI.
+    pub fn register(&mut self, ui: &mut Ui) {
+        if let Some(panel) = self._panel.take() {
+            ui.add(panel);
         }
-        ui.add(self.btn_generate.clone());
-        ui.add(self.btn_clear.clone());
-        ui.add(self.btn_close_code.clone());
     }
 
-    /// Devuelve el WidgetKind del botón pulsado (si alguno lo fue)
+    /// Handle del botón "Generar Codigo".
+    pub fn btn_generate(&self) -> &ButtonHandle {
+        &self.buttons[self.tool_count]
+    }
+
+    /// Handle del botón "Limpiar Todo".
+    pub fn btn_clear(&self) -> &ButtonHandle {
+        &self.buttons[self.tool_count + 1]
+    }
+
+    /// Handle del botón "Cerrar Codigo".
+    pub fn btn_close_code(&self) -> &ButtonHandle {
+        &self.buttons[self.tool_count + 2]
+    }
+
+    /// Devuelve el WidgetKind del primer botón de herramienta pulsado
     /// y consume el evento.
-    pub fn consume_pressed(&mut self) -> Option<WidgetKind> {
-        for t in &mut self.tools {
-            if t.button.pressed {
-                t.button.pressed = false;
-                return Some(t.kind.clone());
+    pub fn consume_pressed(&self) -> Option<WidgetKind> {
+        let kinds = WidgetKind::all();
+        for (i, kind) in kinds.into_iter().enumerate() {
+            let mut btn = self.buttons[i].borrow_mut();
+            if btn.pressed {
+                btn.pressed = false;
+                return Some(kind);
             }
         }
         None
     }
 
-    /// Dibuja el panel completo de la toolbox.
-    pub fn draw(
-        &self,
-        gui:  &mut GuiBatch,
-        text: &mut TextBatch,
-        font: Option<&Font>,
-    ) {
-        let px = self.panel_x;
-        let py = self.panel_y;
+    /// Dibuja el fondo + cabecera del panel y los botones con sus labels.
+    pub fn draw(&self, gui: &mut GuiBatch, text: &mut TextBatch, font: &ferrous_assets::Font) {
+        // Derivamos la posición actual desde el primer botón (ya resuelta por el constraint).
+        let first_rect = self.buttons[0].borrow().rect;
+        let px = first_rect[0] - 8.0;
+        let header_y = first_rect[1] - 40.0; // 40px sobre el primer botón para el header
 
-        // Fondo del panel
-        gui.push(GuiQuad {
-            pos:   [px - 8.0, py - 8.0],
-            size:  [162.0, 700.0],
-            color: [0.12, 0.12, 0.15, 0.95],
-            radii: [0.0; 4],
-            flags: 0,
-        });
+        // Fondo.
+        gui.rect(px - 8.0, 0.0, 162.0, 9999.0, [0.12, 0.12, 0.15, 0.95]);
 
-        if let Some(f) = font {
-            text.draw_text(f, "WIDGETS", [px, py], 14.0, [0.9, 0.75, 0.3, 1.0]);
-            text.draw_text(f, "(click para añadir)", [px, py + 18.0], 10.0, [0.5, 0.5, 0.5, 1.0]);
+        text.draw_text(font, "WIDGETS", [px, header_y], 14.0, [0.9, 0.75, 0.3, 1.0]);
+        text.draw_text(
+            font,
+            "(click para añadir)",
+            [px, header_y + 18.0],
+            10.0,
+            [0.5, 0.5, 0.5, 1.0],
+        );
+
+        // Botones de widgets con draw_with_text.
+        for i in 0..self.tool_count {
+            let btn = self.buttons[i].borrow();
+            btn.draw_with_text(gui, text, Some(font));
         }
 
-        for t in &self.tools {
-            // Dibujar el botón
-            t.button.draw(gui);
+        // Separador.
+        let sep_y = if let Some(last) = self.buttons.get(self.tool_count - 1) {
+            let r = last.borrow();
+            r.rect[1] + r.rect[3] + 8.0
+        } else {
+            header_y + 50.0
+        };
+        gui.rect(px - 8.0, sep_y, 162.0, 2.0, [0.3, 0.3, 0.35, 1.0]);
 
-            // Etiqueta dentro del botón
-            if let Some(f) = font {
-                let color = t.kind.preview_color();
-                text.draw_text(
-                    f,
-                    t.kind.display_name(),
-                    [t.button.rect[0] + 10.0, t.button.rect[1] + 8.0],
-                    13.0,
-                    color,
-                );
-            }
-        }
-
-        // Separador
-        let sep_y = self.tools.last().map_or(py + 50.0, |t| t.button.rect[1] + TOOL_H + 10.0);
-        gui.push(GuiQuad {
-            pos:   [px - 8.0, sep_y],
-            size:  [162.0, 2.0],
-            color: [0.3, 0.3, 0.35, 1.0],
-            radii: [0.0; 4],
-            flags: 0,
-        });
-
-        // Botones de acción
-        self.btn_generate.draw(gui);
-        self.btn_clear.draw(gui);
-        self.btn_close_code.draw(gui);
-
-        if let Some(f) = font {
-            text.draw_text(f, "Generar Codigo",  [px + 8.0, self.btn_generate.rect[1] + 9.0],   13.0, [0.3, 1.0, 0.5, 1.0]);
-            text.draw_text(f, "Limpiar Todo",    [px + 8.0, self.btn_clear.rect[1] + 7.0],      12.0, [1.0, 0.5, 0.4, 1.0]);
-            text.draw_text(f, "Cerrar Codigo",   [px + 8.0, self.btn_close_code.rect[1] + 7.0], 12.0, [0.7, 0.7, 0.7, 1.0]);
+        // Botones de acción.
+        for i in self.tool_count..self.buttons.len() {
+            let btn = self.buttons[i].borrow();
+            btn.draw_with_text(gui, text, Some(font));
         }
     }
 }

@@ -16,24 +16,42 @@ pub fn generate(state: &CanvasState) -> String {
     ));
 
     // ── Imports ───────────────────────────────────────────────────────────────
-    let has_slider      = state.widgets.iter().any(|w| w.kind == WidgetKind::Slider);
-    let has_checkbox    = state.widgets.iter().any(|w| w.kind == WidgetKind::Checkbox);
-    let has_text_input  = state.widgets.iter().any(|w| w.kind == WidgetKind::TextInput);
-    let has_button      = state.widgets.iter().any(|w| w.kind == WidgetKind::Button);
-    let has_progress    = state.widgets.iter().any(|w| w.kind == WidgetKind::ProgressBar);
-    let has_dropdown    = state.widgets.iter().any(|w| w.kind == WidgetKind::Dropdown);
+    let has_slider = state.widgets.iter().any(|w| w.kind == WidgetKind::Slider);
+    let has_checkbox = state.widgets.iter().any(|w| w.kind == WidgetKind::Checkbox);
+    let has_text_input = state
+        .widgets
+        .iter()
+        .any(|w| w.kind == WidgetKind::TextInput);
+    let has_button = state.widgets.iter().any(|w| w.kind == WidgetKind::Button);
+    let has_progress = state
+        .widgets
+        .iter()
+        .any(|w| w.kind == WidgetKind::ProgressBar);
+    let has_dropdown = state.widgets.iter().any(|w| w.kind == WidgetKind::Dropdown);
 
     out.push_str("use ferrous_app::{App, AppContext, AppMode, Color, FerrousApp, KeyCode};\n");
     out.push_str("use ferrous_assets::Font;\n");
 
     // Construir lista de widgets importados de ferrous_gui
     let mut gui_imports: Vec<&str> = vec!["GuiBatch", "TextBatch", "Ui"];
-    if has_button     { gui_imports.push("Button"); }
-    if has_slider     { gui_imports.push("Slider"); }
-    if has_checkbox   { gui_imports.push("Checkbox"); }
-    if has_text_input { gui_imports.push("TextInput"); }
-    if has_progress   { gui_imports.push("ProgressBar"); }
-    if has_dropdown   { gui_imports.push("Dropdown"); }
+    if has_button {
+        gui_imports.push("Button");
+    }
+    if has_slider {
+        gui_imports.push("Slider");
+    }
+    if has_checkbox {
+        gui_imports.push("Checkbox");
+    }
+    if has_text_input {
+        gui_imports.push("TextInput");
+    }
+    if has_progress {
+        gui_imports.push("ProgressBar");
+    }
+    if has_dropdown {
+        gui_imports.push("Dropdown");
+    }
 
     gui_imports.sort_unstable();
     gui_imports.dedup();
@@ -44,7 +62,9 @@ pub fn generate(state: &CanvasState) -> String {
 
     // ── Struct de la aplicación ───────────────────────────────────────────────
     let struct_name = to_pascal_case(&state.project_name);
-    out.push_str("// ── Application state ────────────────────────────────────────────────────────\n\n");
+    out.push_str(
+        "// ── Application state ────────────────────────────────────────────────────────\n\n",
+    );
     out.push_str(&format!("struct {} {{\n", struct_name));
 
     for w in &state.widgets {
@@ -96,9 +116,7 @@ pub fn generate(state: &CanvasState) -> String {
                     "            {}: Checkbox::new({:.1}, {:.1}, {:.1}, {:.1}),\n",
                     w.var_name, w.x, w.y, w.width, w.height
                 ));
-                out.push_str(&format!(
-                    "            {}_checked: false,\n", w.var_name
-                ));
+                out.push_str(&format!("            {}_checked: false,\n", w.var_name));
             }
             WidgetKind::TextInput => {
                 out.push_str(&format!(
@@ -106,7 +124,8 @@ pub fn generate(state: &CanvasState) -> String {
                     w.var_name, w.x, w.y, w.width, w.height
                 ));
                 out.push_str(&format!(
-                    "            {}_text: String::new(),\n", w.var_name
+                    "            {}_text: String::new(),\n",
+                    w.var_name
                 ));
             }
             WidgetKind::ProgressBar => {
@@ -120,9 +139,7 @@ pub fn generate(state: &CanvasState) -> String {
                     "            {}: Dropdown::new({:.1}, {:.1}, {:.1}, {:.1}, vec![\"Option 1\", \"Option 2\", \"Option 3\"]),\n",
                     w.var_name, w.x, w.y, w.width, w.height
                 ));
-                out.push_str(&format!(
-                    "            {}_index: 0,\n", w.var_name
-                ));
+                out.push_str(&format!("            {}_index: 0,\n", w.var_name));
             }
             // Label, Panel, Separator, Image son puramente visuales — sin tipo ferrous_gui.
             _ => {}
@@ -132,7 +149,9 @@ pub fn generate(state: &CanvasState) -> String {
     out.push_str("        }\n    }\n}\n\n");
 
     // ── FerrousApp impl ───────────────────────────────────────────────────────
-    out.push_str("// ── FerrousApp implementation ─────────────────────────────────────────────────\n\n");
+    out.push_str(
+        "// ── FerrousApp implementation ─────────────────────────────────────────────────\n\n",
+    );
     out.push_str(&format!("impl FerrousApp for {} {{\n", struct_name));
 
     // configure_ui
@@ -215,13 +234,14 @@ pub fn generate(state: &CanvasState) -> String {
     out.push_str("}\n\n");
 
     // ── main ──────────────────────────────────────────────────────────────────
-    out.push_str("// ── Entry point ───────────────────────────────────────────────────────────────\n\n");
+    out.push_str(
+        "// ── Entry point ───────────────────────────────────────────────────────────────\n\n",
+    );
     out.push_str("fn main() {\n");
+    out.push_str(&format!("    App::new({}::default())\n", struct_name));
     out.push_str(&format!(
-        "    App::new({}::default())\n", struct_name
-    ));
-    out.push_str(&format!(
-        "        .with_title(\"{}\")\n", state.project_name
+        "        .with_title(\"{}\")\n",
+        state.project_name
     ));
     out.push_str("        .with_size(1280, 720)\n");
     out.push_str("        .with_mode(AppMode::Desktop2D)\n");
@@ -237,12 +257,12 @@ pub fn generate(state: &CanvasState) -> String {
 
 fn widget_type_name(kind: &WidgetKind) -> Option<&'static str> {
     match kind {
-        WidgetKind::Button      => Some("Button"),
-        WidgetKind::Slider      => Some("Slider"),
-        WidgetKind::Checkbox    => Some("Checkbox"),
-        WidgetKind::TextInput   => Some("TextInput"),
+        WidgetKind::Button => Some("Button"),
+        WidgetKind::Slider => Some("Slider"),
+        WidgetKind::Checkbox => Some("Checkbox"),
+        WidgetKind::TextInput => Some("TextInput"),
         WidgetKind::ProgressBar => Some("ProgressBar"),
-        WidgetKind::Dropdown    => Some("Dropdown"),
+        WidgetKind::Dropdown => Some("Dropdown"),
         // Label, Panel, Separator, Image: no tienen tipo ferrous_gui propio.
         _ => None,
     }
@@ -255,7 +275,7 @@ pub fn to_pascal_case(s: &str) -> String {
         .map(|p| {
             let mut chars = p.chars();
             match chars.next() {
-                None    => String::new(),
+                None => String::new(),
                 Some(f) => f.to_uppercase().collect::<String>() + chars.as_str(),
             }
         })
