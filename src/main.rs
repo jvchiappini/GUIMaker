@@ -10,6 +10,13 @@ pub(crate) const TOP_H: f32 = 40.0;
 pub(crate) const LEFT_W: f32 = 200.0;
 pub(crate) const RIGHT_W: f32 = 220.0;
 
+// ── Límites de resize de paneles laterales ──────────────────────────────────────────
+pub(crate) const LEFT_W_MIN:    f32 = 120.0;
+pub(crate) const LEFT_W_MAX:    f32 = 400.0;
+pub(crate) const RIGHT_W_MIN:   f32 = 150.0;
+pub(crate) const RIGHT_W_MAX:   f32 = 480.0;
+const PANEL_EDGE_HIT: f32 = 6.0; // zona de detección del borde en píxeles
+
 // ── Paleta de colores — Dark+ de VS Code (vía Color::hex) ───────────────────────────
 pub(crate) fn c_top() -> [f32; 4] {
     Color::hex("#3C3C3C").to_linear_f32()
@@ -27,8 +34,8 @@ pub(crate) fn c_border() -> [f32; 4] {
     Color::hex("#333333").to_linear_f32()
 } // separador
 pub(crate) fn c_grid() -> [f32; 4] {
-    Color::hex("#222222").to_linear_f32()
-} // grilla
+    Color::hex("#2D2D2D").to_linear_f32()
+} // grilla — ligeramente más clara que el canvas para ser visible
 
 // ── Estado de la aplicación ───────────────────────────────────────────────────
 struct GUIMakerApp {
@@ -41,6 +48,11 @@ struct GUIMakerApp {
     // Ventana personalizada
     drag_offset: Option<(i32, i32)>,
     is_maximized: bool,
+    // Paneles redimensionables
+    left_w: f32,
+    right_w: f32,
+    resizing_left: bool,
+    resizing_right: bool,
 }
 
 impl Default for GUIMakerApp {
@@ -53,6 +65,10 @@ impl Default for GUIMakerApp {
             last_my: 0.0,
             drag_offset: None,
             is_maximized: false,
+            left_w: LEFT_W,
+            right_w: RIGHT_W,
+            resizing_left: false,
+            resizing_right: false,
         }
     }
 }
@@ -103,6 +119,33 @@ impl FerrousApp for GUIMakerApp {
             ctx.window.set_cursor(CursorIcon::Default);
         }
 
+        // ── Resize de paneles laterales ──────────────────────────────────────────
+        let ww = win_w as f32;
+        let over_left_edge  = (mx - self.left_w).abs() < PANEL_EDGE_HIT && my > TOP_H;
+        let over_right_edge = (mx - (ww - self.right_w)).abs() < PANEL_EDGE_HIT && my > TOP_H;
+
+        if ctx.input.button_just_pressed(ferrous_app::MouseButton::Left) {
+            if over_left_edge  { self.resizing_left  = true; }
+            if over_right_edge { self.resizing_right = true; }
+        }
+        if ctx.input.button_just_released(ferrous_app::MouseButton::Left) {
+            self.resizing_left  = false;
+            self.resizing_right = false;
+        }
+        if ctx.input.is_button_down(ferrous_app::MouseButton::Left) {
+            if self.resizing_left {
+                self.left_w = mx.clamp(LEFT_W_MIN, LEFT_W_MAX);
+            }
+            if self.resizing_right {
+                self.right_w = (ww - mx).clamp(RIGHT_W_MIN, RIGHT_W_MAX);
+            }
+        }
+        if (over_left_edge || self.resizing_left || over_right_edge || self.resizing_right)
+            && resize_direction(mx, my, win_w, win_h).is_none()
+        {
+            ctx.window.set_cursor(CursorIcon::EwResize);
+        }
+
         // Canvas: zoom y paneo
         panels::canvas::update(
             ctx,
@@ -111,6 +154,8 @@ impl FerrousApp for GUIMakerApp {
             &mut self.pan_y,
             &mut self.last_mx,
             &mut self.last_my,
+            self.left_w,
+            self.right_w,
         );
     }
 
@@ -118,11 +163,11 @@ impl FerrousApp for GUIMakerApp {
         // 1. Barra superior
         panels::top_bar::draw(dc, self.zoom, self.is_maximized);
         // 2. Panel izquierdo
-        panels::left_panel::draw(dc);
+        panels::left_panel::draw(dc, self.left_w);
         // 3. Panel derecho
-        panels::right_panel::draw(dc);
+        panels::right_panel::draw(dc, self.right_w);
         // 4. Canvas / previsualizador
-        panels::canvas::draw(dc, self.zoom, self.pan_x, self.pan_y);
+        panels::canvas::draw(dc, self.zoom, self.pan_x, self.pan_y, self.left_w, self.right_w);
     }
 }
 

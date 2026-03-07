@@ -1,6 +1,6 @@
 use ferrous_app::{AppContext, DrawContext, MouseButton};
 
-use crate::{c_canvas, c_grid, LEFT_W, RIGHT_W, TOP_H};
+use crate::{c_canvas, c_grid, TOP_H};
 
 // ── Update ────────────────────────────────────────────────────────────────────
 
@@ -12,15 +12,17 @@ pub fn update(
     pan_y: &mut f32,
     last_mx: &mut f32,
     last_my: &mut f32,
+    left_w: f32,
+    right_w: f32,
 ) {
     let (win_w, win_h) = ctx.window_size;
     let ww = win_w as f32;
     let wh = win_h as f32;
     let (mx, my) = ctx.input.mouse_pos_f32();
 
-    let canvas_x = LEFT_W;
+    let canvas_x = left_w;
     let canvas_y = TOP_H;
-    let canvas_w = ww - LEFT_W - RIGHT_W;
+    let canvas_w = ww - left_w - right_w;
     let canvas_h = wh - TOP_H;
 
     let over_canvas = mx >= canvas_x
@@ -55,14 +57,14 @@ pub fn update(
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
 
-pub fn draw(dc: &mut DrawContext<'_, '_>, zoom: f32, pan_x: f32, pan_y: f32) {
+pub fn draw(dc: &mut DrawContext<'_, '_>, zoom: f32, pan_x: f32, pan_y: f32, left_w: f32, right_w: f32) {
     let (win_w, win_h) = dc.ctx.window_size;
     let ww = win_w as f32;
     let wh = win_h as f32;
 
-    let canvas_x = LEFT_W;
+    let canvas_x = left_w;
     let canvas_y = TOP_H;
-    let canvas_w = ww - LEFT_W - RIGHT_W;
+    let canvas_w = ww - left_w - right_w;
     let canvas_h = wh - TOP_H;
 
     // Fondo del canvas
