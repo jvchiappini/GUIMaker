@@ -1,4 +1,7 @@
+use std::sync::Arc;
+
 use ferrous_app::{AppContext, DrawContext, MouseButton};
+use ferrous_assets::Texture2d;
 
 use crate::{c_top, TOP_H};
 
@@ -69,7 +72,14 @@ pub fn update(
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
 
-pub fn draw(dc: &mut DrawContext<'_, '_>, zoom: f32, is_maximized: bool) {
+pub fn draw(
+    dc: &mut DrawContext<'_, '_>,
+    zoom: f32,
+    is_maximized: bool,
+    icon_close: Option<Arc<Texture2d>>,
+    icon_minimize: Option<Arc<Texture2d>>,
+    icon_restore: Option<Arc<Texture2d>>,
+) {
     let (win_w, _) = dc.ctx.window_size;
     let ww = win_w as f32;
     let canvas_x = crate::LEFT_W;
@@ -85,14 +95,11 @@ pub fn draw(dc: &mut DrawContext<'_, '_>, zoom: f32, is_maximized: bool) {
         ferrous_app::Color::hex("#007ACC").to_linear_f32(),
     );
 
+    // texto / iconos usan este color por defecto
+    let text_color = ferrous_app::Color::hex("#CCCCCC").to_linear_f32();
     // Logo / título — blanco VSCode
-    dc.text.draw_text(
-        dc.font,
-        "GUIMaker",
-        [14.0, 12.0],
-        15.0,
-        ferrous_app::Color::hex("#CCCCCC").to_linear_f32(),
-    );
+    dc.text
+        .draw_text(dc.font, "GUIMaker", [14.0, 12.0], 15.0, text_color);
 
     // Indicador de zoom — azul acento VSCode
     let zoom_label = format!("zoom  {:.0}%", zoom * 100.0);
@@ -107,19 +114,42 @@ pub fn draw(dc: &mut DrawContext<'_, '_>, zoom: f32, is_maximized: bool) {
     // ── Cerrar [×] ───────────────────────────────────────────────────────────
     let close_x = ww - TOP_H;
     let hover_close = mx >= close_x && mx <= ww && my >= 0.0 && my <= TOP_H;
+    // botón de cerrar: fondo rojo en hover, normal es mismo color que la barra
     let c_close = if hover_close {
         ferrous_app::Color::hex("#F14C4C").to_linear_f32()
     } else {
         c_top()
     };
     dc.gui.rect_r(close_x, 0.0, TOP_H, TOP_H, c_close, 0.0);
-    dc.text.draw_text(
-        dc.font,
-        "×",
-        [close_x + TOP_H * 0.28, 9.0],
-        18.0,
-        [1.0, 0.70, 0.78, 1.0], // rosa claro
-    );
+    let icon_sz = TOP_H * 0.45;
+    let icon_off = (TOP_H - icon_sz) * 0.5;
+    if let Some(tex) = icon_close {
+        // icono se tinea con texto normal, excepto cuando estamos en hover
+        let icon_color = if hover_close {
+            // conservamos la tonalidad rosada anterior
+            [1.0, 0.70, 0.78, 1.0]
+        } else {
+            text_color
+        };
+        dc.gui.image(
+            close_x + icon_off,
+            icon_off,
+            icon_sz,
+            icon_sz,
+            tex,
+            [0.0, 0.0],
+            [1.0, 1.0],
+            icon_color,
+        );
+    } else {
+        dc.text.draw_text(
+            dc.font,
+            "×",
+            [close_x + TOP_H * 0.28, 9.0],
+            18.0,
+            [1.0, 0.70, 0.78, 1.0],
+        );
+    }
 
     // ── Maximizar [□ / ❐] ────────────────────────────────────────────────────
     let max_x = ww - TOP_H * 2.0;
@@ -130,14 +160,29 @@ pub fn draw(dc: &mut DrawContext<'_, '_>, zoom: f32, is_maximized: bool) {
         c_top()
     };
     dc.gui.rect(max_x, 0.0, TOP_H, TOP_H, c_max);
-    let max_icon = if is_maximized { "❐" } else { "□" };
-    dc.text.draw_text(
-        dc.font,
-        max_icon,
-        [max_x + TOP_H * 0.22, 8.0],
-        16.0,
-        ferrous_app::Color::hex("#CCCCCC").to_linear_f32(),
-    );
+    // restore.svg sirve tanto para restaurar (maximizado) como para maximizar
+    if let Some(tex) = icon_restore {
+        // dibujo normal, sin hover especial (solo cambia el símbolo textual)
+        dc.gui.image(
+            max_x + icon_off,
+            icon_off,
+            icon_sz,
+            icon_sz,
+            tex,
+            [0.0, 0.0],
+            [1.0, 1.0],
+            text_color,
+        );
+    } else {
+        let max_icon = if is_maximized { "❐" } else { "□" };
+        dc.text.draw_text(
+            dc.font,
+            max_icon,
+            [max_x + TOP_H * 0.22, 8.0],
+            16.0,
+            ferrous_app::Color::hex("#CCCCCC").to_linear_f32(),
+        );
+    }
 
     // ── Minimizar [–] ────────────────────────────────────────────────────────
     let min_x = ww - TOP_H * 3.0;
@@ -148,11 +193,24 @@ pub fn draw(dc: &mut DrawContext<'_, '_>, zoom: f32, is_maximized: bool) {
         c_top()
     };
     dc.gui.rect(min_x, 0.0, TOP_H, TOP_H, c_min);
-    dc.text.draw_text(
-        dc.font,
-        "–",
-        [min_x + TOP_H * 0.28, 9.0],
-        18.0,
-        ferrous_app::Color::hex("#CCCCCC").to_linear_f32(),
-    );
+    if let Some(tex) = icon_minimize {
+        dc.gui.image(
+            min_x + icon_off,
+            icon_off,
+            icon_sz,
+            icon_sz,
+            tex,
+            [0.0, 0.0],
+            [1.0, 1.0],
+            text_color,
+        );
+    } else {
+        dc.text.draw_text(
+            dc.font,
+            "–",
+            [min_x + TOP_H * 0.28, 9.0],
+            18.0,
+            ferrous_app::Color::hex("#CCCCCC").to_linear_f32(),
+        );
+    }
 }

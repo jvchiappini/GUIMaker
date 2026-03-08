@@ -8,6 +8,6 @@ name = "gui_maker"
 path = "src/main.rs"
 
 [dependencies]
-ferrous_app = { path = "../FerrousEngine/crates/ferrous_app" }
-ferrous_gui = { path = "../FerrousEngine/crates/ferrous_gui" }
-ferrous_assets = { path = "../FerrousEngine/crates/ferrous_assets" }
+ferrous_app    = { path = "../FerrousEngine/crates/ferrous_app" }
+ferrous_gui    = { path = "../FerrousEngine/crates/ferrous_gui", features = ["assets"] }
+ferrous_assets = { path = "../FerrousEngine/crates/ferrous_assets", features = ["gpu", "svg"] }

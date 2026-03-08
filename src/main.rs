@@ -1,9 +1,12 @@
 ﻿mod panels;
 
+use std::sync::Arc;
+
 use ferrous_app::{
     App, AppContext, AppMode, Color, CursorIcon, DrawContext, FerrousApp, KeyCode,
     WindowResizeDirection,
 };
+use ferrous_assets::Texture2d;
 
 // ── Constantes de layout ──────────────────────────────────────────────────────
 pub(crate) const TOP_H: f32 = 40.0;
@@ -11,10 +14,10 @@ pub(crate) const LEFT_W: f32 = 200.0;
 pub(crate) const RIGHT_W: f32 = 220.0;
 
 // ── Límites de resize de paneles laterales ──────────────────────────────────────────
-pub(crate) const LEFT_W_MIN:    f32 = 120.0;
-pub(crate) const LEFT_W_MAX:    f32 = 400.0;
-pub(crate) const RIGHT_W_MIN:   f32 = 150.0;
-pub(crate) const RIGHT_W_MAX:   f32 = 480.0;
+pub(crate) const LEFT_W_MIN: f32 = 120.0;
+pub(crate) const LEFT_W_MAX: f32 = 400.0;
+pub(crate) const RIGHT_W_MIN: f32 = 150.0;
+pub(crate) const RIGHT_W_MAX: f32 = 480.0;
 const PANEL_EDGE_HIT: f32 = 6.0; // zona de detección del borde en píxeles
 
 // ── Paleta de colores — Dark+ de VS Code (vía Color::hex) ───────────────────────────
@@ -53,6 +56,10 @@ struct GUIMakerApp {
     right_w: f32,
     resizing_left: bool,
     resizing_right: bool,
+    // Iconos de la barra de título
+    icon_close: Option<Arc<Texture2d>>,
+    icon_minimize: Option<Arc<Texture2d>>,
+    icon_restore: Option<Arc<Texture2d>>,
 }
 
 impl Default for GUIMakerApp {
@@ -69,11 +76,34 @@ impl Default for GUIMakerApp {
             right_w: RIGHT_W,
             resizing_left: false,
             resizing_right: false,
+            icon_close: None,
+            icon_minimize: None,
+            icon_restore: None,
         }
     }
 }
 
 impl FerrousApp for GUIMakerApp {
+    fn setup(&mut self, ctx: &mut AppContext) {
+        let renderer = ctx.render.renderer_mut();
+        let device = &renderer.context.device;
+        let queue = &renderer.context.queue;
+        let size = 20_u32; // tamaño de rasterizado en píxeles
+
+        self.icon_close =
+            Texture2d::from_svg_file(device, queue, "assets/svgs/close.svg", size, size)
+                .ok()
+                .map(Arc::new);
+        self.icon_minimize =
+            Texture2d::from_svg_file(device, queue, "assets/svgs/minimize.svg", size, size)
+                .ok()
+                .map(Arc::new);
+        self.icon_restore =
+            Texture2d::from_svg_file(device, queue, "assets/svgs/restore.svg", size, size)
+                .ok()
+                .map(Arc::new);
+    }
+
     fn update(&mut self, ctx: &mut AppContext) {
         if ctx.input.just_pressed(KeyCode::Escape) {
             ctx.request_exit();
@@ -121,15 +151,25 @@ impl FerrousApp for GUIMakerApp {
 
         // ── Resize de paneles laterales ──────────────────────────────────────────
         let ww = win_w as f32;
-        let over_left_edge  = (mx - self.left_w).abs() < PANEL_EDGE_HIT && my > TOP_H;
+        let over_left_edge = (mx - self.left_w).abs() < PANEL_EDGE_HIT && my > TOP_H;
         let over_right_edge = (mx - (ww - self.right_w)).abs() < PANEL_EDGE_HIT && my > TOP_H;
 
-        if ctx.input.button_just_pressed(ferrous_app::MouseButton::Left) {
-            if over_left_edge  { self.resizing_left  = true; }
-            if over_right_edge { self.resizing_right = true; }
+        if ctx
+            .input
+            .button_just_pressed(ferrous_app::MouseButton::Left)
+        {
+            if over_left_edge {
+                self.resizing_left = true;
+            }
+            if over_right_edge {
+                self.resizing_right = true;
+            }
         }
-        if ctx.input.button_just_released(ferrous_app::MouseButton::Left) {
-            self.resizing_left  = false;
+        if ctx
+            .input
+            .button_just_released(ferrous_app::MouseButton::Left)
+        {
+            self.resizing_left = false;
             self.resizing_right = false;
         }
         if ctx.input.is_button_down(ferrous_app::MouseButton::Left) {
@@ -160,14 +200,28 @@ impl FerrousApp for GUIMakerApp {
     }
 
     fn draw_ui(&mut self, dc: &mut DrawContext<'_, '_>) {
-        // 1. Barra superior
-        panels::top_bar::draw(dc, self.zoom, self.is_maximized);
-        // 2. Panel izquierdo
+        // 1. Canvas / previsualizador (primero, queda debajo de los paneles)
+        panels::canvas::draw(
+            dc,
+            self.zoom,
+            self.pan_x,
+            self.pan_y,
+            self.left_w,
+            self.right_w,
+        );
+        // 2. Panel izquierdo (encima del canvas)
         panels::left_panel::draw(dc, self.left_w);
-        // 3. Panel derecho
+        // 3. Panel derecho (encima del canvas)
         panels::right_panel::draw(dc, self.right_w);
-        // 4. Canvas / previsualizador
-        panels::canvas::draw(dc, self.zoom, self.pan_x, self.pan_y, self.left_w, self.right_w);
+        // 4. Barra superior (al final, siempre encima de todo)
+        panels::top_bar::draw(
+            dc,
+            self.zoom,
+            self.is_maximized,
+            self.icon_close.clone(),
+            self.icon_minimize.clone(),
+            self.icon_restore.clone(),
+        );
     }
 }
 
