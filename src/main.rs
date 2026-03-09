@@ -1,29 +1,30 @@
 ﻿mod panels;
+mod scene;
 
 use std::sync::Arc;
 
-use ferrous_app::{
-    App, AppContext, AppMode, CursorIcon, DrawContext, FerrousApp, KeyCode,
-    WindowResizeDirection,
-};
 use ferrous_app::Color as AppColor;
+use ferrous_app::{
+    App, AppContext, AppMode, CursorIcon, DrawContext, FerrousApp, KeyCode, WindowResizeDirection,
+};
 use ferrous_assets::Texture2d;
-use ferrous_gui::{Button, Color, NodeId, UiTree};
-use ferrous_ui_core::{Label, Panel, Separator, StyleBuilder};
+use ferrous_gui::{Color, NodeId, UiTree};
 
-// ── Constantes de layout ──────────────────────────────────────────────────────
+use panels::left_panel::PaletteState;
+use scene::SceneState;
+
+// ── Layout constants ──────────────────────────────────────────────────────────
 pub(crate) const TOP_H: f32 = 40.0;
 pub(crate) const LEFT_W: f32 = 200.0;
-pub(crate) const RIGHT_W: f32 = 220.0;
+pub(crate) const RIGHT_W: f32 = 240.0;
 
-// ── Límites de resize de paneles laterales ────────────────────────────────────
-pub(crate) const LEFT_W_MIN: f32 = 120.0;
+pub(crate) const LEFT_W_MIN: f32 = 150.0;
 pub(crate) const LEFT_W_MAX: f32 = 400.0;
-pub(crate) const RIGHT_W_MIN: f32 = 150.0;
-pub(crate) const RIGHT_W_MAX: f32 = 480.0;
+pub(crate) const RIGHT_W_MIN: f32 = 180.0;
+pub(crate) const RIGHT_W_MAX: f32 = 500.0;
 const PANEL_EDGE_HIT: f32 = 6.0;
 
-// ── Paleta de colores — Dark+ de VS Code ──────────────────────────────────────
+// ── Color palette ─────────────────────────────────────────────────────────────
 pub(crate) fn c_top() -> [f32; 4] {
     AppColor::hex("#3C3C3C").to_linear_f32()
 }
@@ -37,34 +38,51 @@ pub(crate) fn c_grid() -> [f32; 4] {
     AppColor::hex("#2D2D2D").to_linear_f32()
 }
 
-// ── Estado de la aplicación ───────────────────────────────────────────────────
+// ── Preview resize handle ─────────────────────────────────────────────────────
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum PreviewDrag {
+    Left,
+    Right,
+    Top,
+    Bottom,
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+}
+
+// ── Application state ─────────────────────────────────────────────────────────
 struct GUIMakerApp {
-    // Canvas
+    // Canvas navigation
     zoom: f32,
     pan_x: f32,
     pan_y: f32,
     last_mx: f32,
     last_my: f32,
-    // Ventana personalizada
+    // Window control
     drag_offset: Option<(i32, i32)>,
     is_maximized: bool,
-    // Configuración de la previsualización
+    // Preview canvas
     show_settings_modal: bool,
     preview_width: f32,
     preview_height: f32,
-    preview_responsive: bool,
-    // Paneles redimensionables
+    preview_drag: Option<PreviewDrag>,
+    // Panel resize
     left_w: f32,
     right_w: f32,
     resizing_left: bool,
     resizing_right: bool,
-    // Iconos de la barra de título
+    // Title-bar icons
     icon_close: Option<Arc<Texture2d>>,
     icon_minimize: Option<Arc<Texture2d>>,
     icon_restore: Option<Arc<Texture2d>>,
-    // NodeIds del nuevo árbol de UI
+    // UI node ids (unused after removing old UI-tree widget building)
     left_panel_id: Option<NodeId>,
     right_panel_id: Option<NodeId>,
+    last_selected_id: Option<u32>,
+    // ── Scene builder ─────────────────────────────────────────────────────────
+    scene: SceneState,
+    palette_state: PaletteState,
 }
 
 impl Default for GUIMakerApp {
@@ -87,9 +105,12 @@ impl Default for GUIMakerApp {
             show_settings_modal: false,
             preview_width: 800.0,
             preview_height: 600.0,
-            preview_responsive: true,
+            preview_drag: None,
             left_panel_id: None,
             right_panel_id: None,
+            last_selected_id: None,
+            scene: SceneState::default(),
+            palette_state: PaletteState::default(),
         }
     }
 }
@@ -116,118 +137,53 @@ impl FerrousApp for GUIMakerApp {
     }
 
     fn configure_ui(&mut self, ui: &mut UiTree<Self>) {
-        // ── Panel izquierdo — Herramientas ────────────────────────────────────
-        let left_panel = Panel::new()
-            .with_color(Color::hex("#252526"));
+        // We only keep the invisible root panels for node-id bookkeeping.
+        // All visible content is rendered manually in draw_ui.
+        use ferrous_ui_core::{Panel, StyleBuilder};
+
+        let left_panel = Panel::new().with_color(Color::hex("#00000000"));
         let left_id = ui.add_node(Box::new(left_panel), None);
-        ui.set_node_style(
-            left_id,
-            StyleBuilder::new()
-                .absolute()
-                .left(0.0)
-                .top(TOP_H)
-                .width_px(LEFT_W)
-                .fill_height()
-                .column()
-                .padding_all(8.0)
-                .build(),
-        );
+        ui.set_node_style(left_id, StyleBuilder::new().absolute().build());
         self.left_panel_id = Some(left_id);
 
-        // Título del panel izquierdo
-        let title_left = Label::new("Herramientas")
-            .with_color(Color::hex("#BBBBBB"))
-            .with_size(11.0);
-        let title_left_id = ui.add_node(Box::new(title_left), Some(left_id));
-        ui.set_node_style(
-            title_left_id,
-            StyleBuilder::new().fill_width().height_px(20.0).margin_xy(0.0, 4.0).build(),
-        );
-
-        // Separador
-        let sep = Separator::new();
-        let sep_id = ui.add_node(Box::new(sep), Some(left_id));
-        ui.set_node_style(
-            sep_id,
-            StyleBuilder::new().fill_width().height_px(1.0).margin_xy(0.0, 4.0).build(),
-        );
-
-        // Botones de herramientas
-        for label in &["Selector", "Texto", "Imagen", "Botón", "Contenedor"] {
-            let btn = Button::<GUIMakerApp>::new(*label).on_click(|_ctx| {});
-            let btn_id = ui.add_node(Box::new(btn), Some(left_id));
-            ui.set_node_style(
-                btn_id,
-                StyleBuilder::new().fill_width().height_px(30.0).margin_xy(0.0, 3.0).build(),
-            );
-        }
-
-        // ── Panel derecho — Propiedades ───────────────────────────────────────
-        let right_panel = Panel::new()
-            .with_color(Color::hex("#252526"));
+        let right_panel = Panel::new().with_color(Color::hex("#00000000"));
         let right_id = ui.add_node(Box::new(right_panel), None);
-        ui.set_node_style(
-            right_id,
-            StyleBuilder::new()
-                .absolute()
-                .right(0.0)
-                .top(TOP_H)
-                .width_px(RIGHT_W)
-                .fill_height()
-                .column()
-                .padding_all(8.0)
-                .build(),
-        );
+        ui.set_node_style(right_id, StyleBuilder::new().absolute().build());
         self.right_panel_id = Some(right_id);
 
-        // Título del panel derecho
-        let title_right = Label::new("Propiedades")
-            .with_color(Color::hex("#BBBBBB"))
-            .with_size(11.0);
-        let title_right_id = ui.add_node(Box::new(title_right), Some(right_id));
-        ui.set_node_style(
-            title_right_id,
-            StyleBuilder::new().fill_width().height_px(20.0).margin_xy(0.0, 4.0).build(),
-        );
-
-        // Separador
-        let sep2 = Separator::new();
-        let sep2_id = ui.add_node(Box::new(sep2), Some(right_id));
-        ui.set_node_style(
-            sep2_id,
-            StyleBuilder::new().fill_width().height_px(1.0).margin_xy(0.0, 4.0).build(),
-        );
-
-        // Filas de propiedades
-        for prop in &["X:", "Y:", "Ancho:", "Alto:"] {
-            let lbl = Label::new(*prop)
-                .with_color(Color::hex("#CCCCCC"))
-                .with_size(11.0);
-            let lbl_id = ui.add_node(Box::new(lbl), Some(right_id));
-            ui.set_node_style(
-                lbl_id,
-                StyleBuilder::new().fill_width().height_px(22.0).margin_xy(0.0, 2.0).build(),
-            );
-        }
+        // Build initial right panel state
+        panels::right_panel::configure_ui(ui, right_id, &self.scene);
     }
 
     fn update(&mut self, ctx: &mut AppContext) {
+        // ── Input: handle UI events first ───────────────────────────────────
+        if !self.show_settings_modal {
+            let win_w = ctx.window_size.0 as f32;
+            let right_x = win_w - self.right_w;
+            // Only handle events for the right panel if mouse is over it.
+            // (Simple optimization, and prevents canvas drag through panel).
+            let (mx, my) = ctx.input.mouse_pos_f32();
+            if mx >= right_x && my >= TOP_H {
+                ctx.gui.handle_event(ctx);
+            }
+        }
+
+        // Escape to exit (unless a modal is open)
         if ctx.input.just_pressed(KeyCode::Escape) && !self.show_settings_modal {
             ctx.request_exit();
         }
 
-        // Si el modal está abierto, procesarlo primero para que capture los eventos
+        // Settings modal
         if self.show_settings_modal {
             panels::settings::update(
                 ctx,
                 &mut self.preview_width,
                 &mut self.preview_height,
-                &mut self.preview_responsive,
                 &mut self.show_settings_modal,
             );
         }
 
-        // Barra superior: botones de ventana + drag
+        // Top bar
         let should_exit = panels::top_bar::update(
             ctx,
             &mut self.drag_offset,
@@ -239,7 +195,7 @@ impl FerrousApp for GUIMakerApp {
             return;
         }
 
-        // Resize desde los bordes de la ventana
+        // Window-edge resize
         let (win_w, win_h) = ctx.window_size;
         let (mx, my) = ctx.input.mouse_pos_f32();
         if !self.is_maximized {
@@ -271,7 +227,7 @@ impl FerrousApp for GUIMakerApp {
             ctx.window.set_cursor(CursorIcon::Default);
         }
 
-        // ── Resize de paneles laterales ───────────────────────────────────────
+        // Panel side-resize
         let ww = win_w as f32;
         let over_left_edge = (mx - self.left_w).abs() < PANEL_EDGE_HIT && my > TOP_H;
         let over_right_edge = (mx - (ww - self.right_w)).abs() < PANEL_EDGE_HIT && my > TOP_H;
@@ -308,7 +264,26 @@ impl FerrousApp for GUIMakerApp {
             ctx.window.set_cursor(CursorIcon::EwResize);
         }
 
-        // Canvas: zoom y paneo
+        // ── Left panel: widget palette ────────────────────────────────────────
+        // Only handle palette interaction when the settings modal is not open
+        if !self.show_settings_modal && !self.resizing_left && !self.resizing_right {
+            panels::left_panel::update(ctx, self.left_w, &mut self.scene, &mut self.palette_state);
+        }
+
+        // ── Right panel: properties inspector ────────────────────────────────
+        if !self.show_settings_modal && !self.resizing_left && !self.resizing_right {
+            // Check if selection changed to rebuild UI
+            if self.scene.selected_id != self.last_selected_id {
+                if let Some(right_id) = self.right_panel_id {
+                    ctx.gui.clear_node_children(right_id);
+                    panels::right_panel::configure_ui(ctx.gui, right_id, &self.scene);
+                }
+                self.last_selected_id = self.scene.selected_id;
+            }
+            panels::right_panel::update(ctx, self.right_w, &mut self.scene);
+        }
+
+        // ── Canvas: zoom, pan, widget select/drag, palette drop ───────────────
         panels::canvas::update(
             ctx,
             &mut self.zoom,
@@ -318,11 +293,15 @@ impl FerrousApp for GUIMakerApp {
             &mut self.last_my,
             self.left_w,
             self.right_w,
+            &mut self.preview_width,
+            &mut self.preview_height,
+            &mut self.preview_drag,
+            &mut self.scene,
         );
     }
 
     fn draw_ui(&mut self, dc: &mut DrawContext<'_, '_>) {
-        // 1. Canvas / previsualizador (primero, queda debajo de los paneles)
+        // 1. Canvas (below everything)
         panels::canvas::draw(
             dc,
             self.zoom,
@@ -332,13 +311,36 @@ impl FerrousApp for GUIMakerApp {
             self.right_w,
             self.preview_width,
             self.preview_height,
-            self.preview_responsive,
+            &self.scene,
         );
-        // 2. Borde izquierdo (separador visual entre canvas y panel)
+
+        // 2. Panel backgrounds
+        panels::left_panel::draw_background(dc, self.left_w);
+        panels::right_panel::draw_background(dc, self.right_w);
+
+        // 3. Panel borders
         panels::left_panel::draw_border(dc, self.left_w);
-        // 3. Borde derecho (separador visual entre canvas y panel)
         panels::right_panel::draw_border(dc, self.right_w);
-        // 4. Barra superior (al final, siempre encima de todo)
+
+        // 4. Left panel content: widget palette
+        panels::left_panel::draw(dc, self.left_w, &self.palette_state, &self.scene);
+
+        // 5. Right panel content: properties inspector
+        panels::right_panel::draw(dc, self.right_w, &self.scene);
+
+        // 5.1 Right panel UI tree (interactive elements)
+        let (win_w, win_h) = dc.ctx.window_size;
+        let right_x = win_w as f32 - self.right_w;
+        let panel_h = win_h as f32 - TOP_H;
+        dc.gui.push_clip(ferrous_gui::Rect::new(right_x, TOP_H, self.right_w, panel_h));
+        if let Some(rid) = self.right_panel_id {
+            dc.gui.set_node_position(rid, right_x, TOP_H);
+            dc.gui.set_node_size(rid, self.right_w, panel_h);
+            dc.gui.draw_node(rid, dc);
+        }
+        dc.gui.pop_clip();
+
+        // 6. Top bar (always on top)
         panels::top_bar::draw(
             dc,
             self.zoom,
@@ -348,19 +350,15 @@ impl FerrousApp for GUIMakerApp {
             self.icon_restore.clone(),
             self.show_settings_modal,
         );
-        // Modal de ajustes (superpone todo cuando está activo)
+
+        // 7. Settings modal (on top of everything when visible)
         if self.show_settings_modal {
-            panels::settings::draw(
-                dc,
-                self.preview_width,
-                self.preview_height,
-                self.preview_responsive,
-            );
+            panels::settings::draw(dc, self.preview_width, self.preview_height);
         }
     }
 }
 
-// ── Helper: detectar zona de resize en los bordes de la ventana ──────────────
+// ── Helper: window edge resize direction ──────────────────────────────────────
 pub(crate) fn resize_direction(
     mx: f32,
     my: f32,
@@ -392,6 +390,8 @@ fn main() {
         .with_mode(AppMode::Desktop2D)
         .with_decorations(false)
         .with_resizable(true)
+        .with_vsync(false)
+        .with_target_fps(Some(240))
         .with_background_color(AppColor::hex("#1E1E1E"))
         .with_font("assets/fonts/Roboto-Regular.ttf")
         .run();

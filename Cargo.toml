@@ -8,8 +8,14 @@ name = "gui_maker"
 path = "src/main.rs"
 
 [dependencies]
-ferrous_app      = { path = "../FerrousEngine/crates/ferrous_app" }
-ferrous_gui      = { path = "../FerrousEngine/crates/ferrous_gui", features = ["assets"] }
-ferrous_ui_core  = { path = "../FerrousEngine/crates/ferrous_ui_core" }
-ferrous_layout   = { path = "../FerrousEngine/crates/ferrous_layout" }
-ferrous_assets   = { path = "../FerrousEngine/crates/ferrous_assets", features = ["gpu", "svg"] }
+ferrous_app      = { path = "../crates/ferrous_app" }
+ferrous_gui      = { path = "../crates/ferrous_gui", features = ["assets"] }
+ferrous_ui_core  = { path = "../crates/ferrous_ui_core" }
+ferrous_layout   = { path = "../crates/ferrous_layout" }
+ferrous_assets   = { path = "../crates/ferrous_assets", features = ["gpu", "svg"] }
+
+[workspace]
+# empty workspace table prevents Cargo from walking upward and assuming
+# this package belongs to the parent FerrousEngine workspace.  With this
+# in place `cargo run` will treat GUIMaker as a standalone crate while
+# still allowing path dependencies to the FerrousEngine crates.
