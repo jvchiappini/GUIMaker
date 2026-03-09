@@ -1,3 +1,4 @@
+// No changes required in the update function signature.
 use ferrous_app::{AppContext, DrawContext, MouseButton};
 
 use crate::{c_canvas, c_grid, TOP_H};
@@ -57,7 +58,17 @@ pub fn update(
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
 
-pub fn draw(dc: &mut DrawContext<'_, '_>, zoom: f32, pan_x: f32, pan_y: f32, left_w: f32, right_w: f32) {
+pub fn draw(
+    dc: &mut DrawContext<'_, '_>,
+    zoom: f32,
+    pan_x: f32,
+    pan_y: f32,
+    left_w: f32,
+    right_w: f32,
+    preview_w: f32,
+    preview_h: f32,
+    preview_responsive: bool,
+) {
     let (win_w, win_h) = dc.ctx.window_size;
     let ww = win_w as f32;
     let wh = win_h as f32;
@@ -106,11 +117,22 @@ pub fn draw(dc: &mut DrawContext<'_, '_>, zoom: f32, pan_x: f32, pan_y: f32, lef
     );
 
     // Hint de controles
-    dc.text.draw_text(
+    dc.gui.draw_text(
         dc.font,
         "Rueda: zoom  |  Btn.medio / Btn.derecho: paneo",
         [canvas_x + 8.0, canvas_y + canvas_h - 18.0],
         10.0,
         ferrous_app::Color::hex("#555555").to_linear_f32(),
     );
+
+    // Si no es responsive, dibujamos un borde que representa la "ventana de preview" con las medidas especificadas
+    if !preview_responsive {
+        let pw = preview_w.min(canvas_w);
+        let ph = preview_h.min(canvas_h);
+        let px = canvas_x + (canvas_w - pw) * 0.5;
+        let py = canvas_y + (canvas_h - ph) * 0.5;
+        // borde blanco semitransparente
+        dc.gui.rect(px, py, pw, ph, [1.0, 1.0, 1.0, 0.3]);
+        dc.gui.rect(px + 1.0, py + 1.0, pw - 2.0, ph - 2.0, [0.0, 0.0, 0.0, 0.0]);
+    }
 }

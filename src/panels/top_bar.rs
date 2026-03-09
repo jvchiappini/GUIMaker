@@ -14,6 +14,7 @@ pub fn update(
     ctx: &mut AppContext,
     drag_offset: &mut Option<(i32, i32)>,
     is_maximized: &mut bool,
+    open_settings: &mut bool,
 ) -> bool {
     let (win_w, win_h) = ctx.window_size;
     let ww = win_w as f32;
@@ -41,8 +42,17 @@ pub fn update(
         ctx.window.set_minimized(true);
     }
 
+    // ── Botón Config ─────────────────────────────────────────────────────────
+    // 4° slot; se evalúa después de los otros para no robar el evento
+    let gear_slot_x = ww - TOP_H * 4.0;
+    let over_gear = mx >= gear_slot_x && mx < min_x && my >= 0.0 && my <= TOP_H;
+    if over_gear && ctx.input.button_just_pressed(MouseButton::Left) {
+        *open_settings = !*open_settings;
+    }
+
     // ── Drag de la barra ─────────────────────────────────────────────────────
-    let drag_area_w = ww - TOP_H * 3.0;
+    // excluye los 4 slots de botones (cerrar+maximizar+minimizar+gear)
+    let drag_area_w = ww - TOP_H * 4.0;
     let over_drag = mx >= 0.0
         && mx < drag_area_w
         && my >= 0.0
@@ -79,6 +89,7 @@ pub fn draw(
     icon_close: Option<Arc<Texture2d>>,
     icon_minimize: Option<Arc<Texture2d>>,
     icon_restore: Option<Arc<Texture2d>>,
+    _show_settings: bool,
 ) {
     let (win_w, _) = dc.ctx.window_size;
     let ww = win_w as f32;
@@ -98,17 +109,41 @@ pub fn draw(
     // texto / iconos usan este color por defecto
     let text_color = ferrous_app::Color::hex("#CCCCCC").to_linear_f32();
     // Logo / título — blanco VSCode
-    dc.text
+    dc.gui
         .draw_text(dc.font, "GUIMaker", [14.0, 12.0], 15.0, text_color);
 
     // Indicador de zoom — azul acento VSCode
     let zoom_label = format!("zoom  {:.0}%", zoom * 100.0);
-    dc.text.draw_text(
+    dc.gui.draw_text(
         dc.font,
         &zoom_label,
         [canvas_x + 8.0, 13.0],
         11.0,
         ferrous_app::Color::hex("#3DC9B0").to_linear_f32(),
+    );
+
+    // ── Botón Config ───────────────────────────────────────────
+    // 4° slot desde la derecha, igual que los botones de ventana
+    let min_x = ww - TOP_H * 3.0;
+    let gear_slot_x = ww - TOP_H * 4.0;
+    let over_gear = mx >= gear_slot_x && mx < min_x && my >= 0.0 && my <= TOP_H;
+    let c_gear = if over_gear {
+        ferrous_app::Color::hex("#505050").to_linear_f32()
+    } else {
+        c_top()
+    };
+    dc.gui.rect(gear_slot_x, 0.0, TOP_H, TOP_H, c_gear);
+    let gear_color = if over_gear {
+        ferrous_app::Color::hex("#3DC9B0").to_linear_f32()
+    } else {
+        text_color
+    };
+    dc.gui.draw_text(
+        dc.font,
+        "Config",
+        [gear_slot_x + 4.0, 13.0],
+        10.0,
+        gear_color,
     );
 
     // ── Cerrar [×] ───────────────────────────────────────────────────────────
@@ -142,7 +177,7 @@ pub fn draw(
             icon_color,
         );
     } else {
-        dc.text.draw_text(
+        dc.gui.draw_text(
             dc.font,
             "×",
             [close_x + TOP_H * 0.28, 9.0],
@@ -175,7 +210,7 @@ pub fn draw(
         );
     } else {
         let max_icon = if is_maximized { "❐" } else { "□" };
-        dc.text.draw_text(
+        dc.gui.draw_text(
             dc.font,
             max_icon,
             [max_x + TOP_H * 0.22, 8.0],
@@ -205,7 +240,7 @@ pub fn draw(
             text_color,
         );
     } else {
-        dc.text.draw_text(
+        dc.gui.draw_text(
             dc.font,
             "–",
             [min_x + TOP_H * 0.28, 9.0],
