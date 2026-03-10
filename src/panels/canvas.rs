@@ -5,6 +5,8 @@ use crate::{c_canvas, c_grid, scene::SceneState, PreviewDrag, TOP_H};
 
 const HANDLE_HIT: f32 = 8.0;
 
+//test
+
 // ── Update ────────────────────────────────────────────────────────────────────
 
 #[allow(clippy::too_many_arguments)]
@@ -240,7 +242,8 @@ pub fn draw(
     let canvas_h = wh - TOP_H;
 
     // Clip to canvas area so widget drawings don't bleed into panels
-    dc.gui.push_clip(Rect::new(canvas_x, canvas_y, canvas_w, canvas_h));
+    dc.gui
+        .push_clip(Rect::new(canvas_x, canvas_y, canvas_w, canvas_h));
 
     // 1. Background
     dc.gui
