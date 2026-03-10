@@ -13,6 +13,8 @@ ferrous_gui      = { path = "../crates/ferrous_gui", features = ["assets"] }
 ferrous_ui_core  = { path = "../crates/ferrous_ui_core" }
 ferrous_layout   = { path = "../crates/ferrous_layout" }
 ferrous_assets   = { path = "../crates/ferrous_assets", features = ["gpu", "svg"] }
+ferrous_events   = { path = "../crates/ferrous_events" }
+winit           = "0.30"
 
 [workspace]
 # empty workspace table prevents Cargo from walking upward and assuming

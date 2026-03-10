@@ -8,7 +8,6 @@ use ferrous_app::{
     App, AppContext, AppMode, CursorIcon, DrawContext, FerrousApp, KeyCode, WindowResizeDirection,
 };
 use ferrous_assets::Texture2d;
-use ferrous_gui::{Color, NodeId, UiTree};
 
 use panels::left_panel::PaletteState;
 use scene::SceneState;
@@ -76,10 +75,6 @@ struct GUIMakerApp {
     icon_close: Option<Arc<Texture2d>>,
     icon_minimize: Option<Arc<Texture2d>>,
     icon_restore: Option<Arc<Texture2d>>,
-    // UI node ids (unused after removing old UI-tree widget building)
-    left_panel_id: Option<NodeId>,
-    right_panel_id: Option<NodeId>,
-    last_selected_id: Option<u32>,
     // ── Scene builder ─────────────────────────────────────────────────────────
     scene: SceneState,
     palette_state: PaletteState,
@@ -106,9 +101,6 @@ impl Default for GUIMakerApp {
             preview_width: 800.0,
             preview_height: 600.0,
             preview_drag: None,
-            left_panel_id: None,
-            right_panel_id: None,
-            last_selected_id: None,
             scene: SceneState::default(),
             palette_state: PaletteState::default(),
         }
@@ -136,38 +128,9 @@ impl FerrousApp for GUIMakerApp {
                 .map(Arc::new);
     }
 
-    fn configure_ui(&mut self, ui: &mut UiTree<Self>) {
-        // We only keep the invisible root panels for node-id bookkeeping.
-        // All visible content is rendered manually in draw_ui.
-        use ferrous_ui_core::{Panel, StyleBuilder};
-
-        let left_panel = Panel::new().with_color(Color::hex("#00000000"));
-        let left_id = ui.add_node(Box::new(left_panel), None);
-        ui.set_node_style(left_id, StyleBuilder::new().absolute().build());
-        self.left_panel_id = Some(left_id);
-
-        let right_panel = Panel::new().with_color(Color::hex("#00000000"));
-        let right_id = ui.add_node(Box::new(right_panel), None);
-        ui.set_node_style(right_id, StyleBuilder::new().absolute().build());
-        self.right_panel_id = Some(right_id);
-
-        // Build initial right panel state
-        panels::right_panel::configure_ui(ui, right_id, &self.scene);
-    }
+    fn configure_ui(&mut self, _ui: &mut ferrous_gui::UiTree<Self>) {}
 
     fn update(&mut self, ctx: &mut AppContext) {
-        // ── Input: handle UI events first ───────────────────────────────────
-        if !self.show_settings_modal {
-            let win_w = ctx.window_size.0 as f32;
-            let right_x = win_w - self.right_w;
-            // Only handle events for the right panel if mouse is over it.
-            // (Simple optimization, and prevents canvas drag through panel).
-            let (mx, my) = ctx.input.mouse_pos_f32();
-            if mx >= right_x && my >= TOP_H {
-                ctx.gui.handle_event(ctx);
-            }
-        }
-
         // Escape to exit (unless a modal is open)
         if ctx.input.just_pressed(KeyCode::Escape) && !self.show_settings_modal {
             ctx.request_exit();
@@ -272,14 +235,6 @@ impl FerrousApp for GUIMakerApp {
 
         // ── Right panel: properties inspector ────────────────────────────────
         if !self.show_settings_modal && !self.resizing_left && !self.resizing_right {
-            // Check if selection changed to rebuild UI
-            if self.scene.selected_id != self.last_selected_id {
-                if let Some(right_id) = self.right_panel_id {
-                    ctx.gui.clear_node_children(right_id);
-                    panels::right_panel::configure_ui(ctx.gui, right_id, &self.scene);
-                }
-                self.last_selected_id = self.scene.selected_id;
-            }
             panels::right_panel::update(ctx, self.right_w, &mut self.scene);
         }
 
@@ -327,18 +282,6 @@ impl FerrousApp for GUIMakerApp {
 
         // 5. Right panel content: properties inspector
         panels::right_panel::draw(dc, self.right_w, &self.scene);
-
-        // 5.1 Right panel UI tree (interactive elements)
-        let (win_w, win_h) = dc.ctx.window_size;
-        let right_x = win_w as f32 - self.right_w;
-        let panel_h = win_h as f32 - TOP_H;
-        dc.gui.push_clip(ferrous_gui::Rect::new(right_x, TOP_H, self.right_w, panel_h));
-        if let Some(rid) = self.right_panel_id {
-            dc.gui.set_node_position(rid, right_x, TOP_H);
-            dc.gui.set_node_size(rid, self.right_w, panel_h);
-            dc.gui.draw_node(rid, dc);
-        }
-        dc.gui.pop_clip();
 
         // 6. Top bar (always on top)
         panels::top_bar::draw(

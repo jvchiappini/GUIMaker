@@ -1,141 +1,375 @@
-use ferrous_app::{AppContext, Color as AppColor, DrawContext};
-use ferrous_gui::{Color, NodeId, Rect, UiTree};
-use ferrous_ui_core::{Button, EventContext, Label, Panel, StyleBuilder};
+use ferrous_app::{AppContext, Color as AppColor, DrawContext, KeyCode, MouseButton};
+use ferrous_gui::Rect;
 
 use crate::{
     c_border,
     scene::{SceneState, WidgetKind},
-    GUIMakerApp, TOP_H,
+    TOP_H,
 };
 
-// ── Palette ───────────────────────────────────────────────────────────────────
-const C_TEXT: [f32; 4] = [0.867, 0.867, 0.867, 1.0];
-const C_MUTED: [f32; 4] = [0.55, 0.55, 0.55, 1.0];
-const C_FIELD_BG: [f32; 4] = [0.098, 0.098, 0.098, 1.0];
-const C_FIELD_BORDER: [f32; 4] = [0.267, 0.267, 0.267, 1.0];
-const C_SECTION: [f32; 4] = [0.18, 0.18, 0.184, 1.0];
-const C_ACCENT: [f32; 4] = [0.0, 0.478, 0.800, 1.0];
-const C_DELETE: [f32; 4] = [0.75, 0.18, 0.18, 1.0];
-const C_DELETE_H: [f32; 4] = [0.90, 0.22, 0.22, 1.0];
-
 // ── Layout constants ──────────────────────────────────────────────────────────
-const PAD: f32 = 10.0;
-const ROW_H: f32 = 28.0;
-const FIELD_H: f32 = 22.0;
+const HEADER_H: f32 = 34.0;
+const SECTION_H: f32 = 20.0;
+const ROW_H: f32 = 26.0;
+const ROW_PAD_X: f32 = 10.0;
+const BTN_W: f32 = 22.0;
 const LABEL_W: f32 = 54.0;
 
-fn hit(mx: f32, my: f32, x: f32, y: f32, w: f32, h: f32) -> bool {
-    mx >= x && mx <= x + w && my >= y && my <= y + h
+// ── Update (interaction) ──────────────────────────────────────────────────────
+
+pub fn update(ctx: &mut AppContext, right_w: f32, scene: &mut SceneState) {
+    let (win_w, win_h) = ctx.window_size;
+    let panel_x = win_w as f32 - right_w;
+    let panel_h = win_h as f32 - TOP_H;
+
+    let (mx, my) = ctx.input.mouse_pos_f32();
+    let mouse_in_panel = mx >= panel_x && mx < win_w as f32 && my >= TOP_H && my < TOP_H + panel_h;
+    let clicked = ctx.input.button_just_pressed(MouseButton::Left);
+
+    // ── Keyboard handling for focused text field ───────────────────────────
+    if scene.editing_field.is_some() {
+        // Backspace
+        if ctx.input.just_pressed(KeyCode::Backspace) {
+            scene.edit_buffer.pop();
+        }
+        // Printable chars
+        for &c in ctx.input.typed_chars() {
+            // Skip control characters (backspace is already handled via KeyCode)
+            if !c.is_control() {
+                scene.edit_buffer.push(c);
+            }
+        }
+        // Commit on Enter, cancel on Escape
+        if ctx.input.just_pressed(KeyCode::Enter) || ctx.input.just_pressed(KeyCode::Escape) {
+            let commit = ctx.input.just_pressed(KeyCode::Enter);
+            if commit {
+                if let Some(field) = scene.editing_field.clone() {
+                    let buf = scene.edit_buffer.clone();
+                    if let Some(w) = scene.selected_mut() {
+                        match field.as_str() {
+                            "label" => w.props.label = buf,
+                            "color" => w.props.color_hex = buf,
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            scene.editing_field = None;
+            scene.edit_buffer.clear();
+        }
+        // Clicking outside the panel also commits
+        if clicked && !mouse_in_panel {
+            if let Some(field) = scene.editing_field.clone() {
+                let buf = scene.edit_buffer.clone();
+                if let Some(w) = scene.selected_mut() {
+                    match field.as_str() {
+                        "label" => w.props.label = buf,
+                        "color" => w.props.color_hex = buf,
+                        _ => {}
+                    }
+                }
+            }
+            scene.editing_field = None;
+            scene.edit_buffer.clear();
+        }
+        // If a text field is focused, swallow ALL input so camera/canvas don't react
+        return;
+    }
+
+    if !mouse_in_panel || !clicked {
+        return;
+    }
+
+    let Some(selected_id) = scene.selected_id else {
+        return;
+    };
+
+    let hit_x = mx - panel_x;
+    let minus_x = right_w - ROW_PAD_X - BTN_W * 2.0 - 4.0;
+    let plus_x = right_w - ROW_PAD_X - BTN_W;
+
+    let mut cursor_y = TOP_H + HEADER_H;
+    cursor_y += 22.0 + 10.0; // kind badge
+
+    // skip hidden hint row
+    if scene
+        .widgets
+        .iter()
+        .any(|w| w.id == selected_id && !w.props.visible)
+    {
+        cursor_y += ROW_H;
+    }
+
+    // -- Transform section ----------------------------------------------------
+    cursor_y += SECTION_H;
+    for field in 0u8..4 {
+        if my >= cursor_y && my < cursor_y + ROW_H {
+            if hit_x >= minus_x && hit_x < minus_x + BTN_W {
+                if let Some(w) = scene.widgets.iter_mut().find(|w| w.id == selected_id) {
+                    match field {
+                        0 => w.x -= 1.0,
+                        1 => w.y -= 1.0,
+                        2 => w.w = (w.w - 1.0).max(8.0),
+                        3 => w.h = (w.h - 1.0).max(8.0),
+                        _ => {}
+                    }
+                }
+            } else if hit_x >= plus_x && hit_x < plus_x + BTN_W {
+                if let Some(w) = scene.widgets.iter_mut().find(|w| w.id == selected_id) {
+                    match field {
+                        0 => w.x += 1.0,
+                        1 => w.y += 1.0,
+                        2 => w.w += 1.0,
+                        3 => w.h += 1.0,
+                        _ => {}
+                    }
+                }
+            }
+        }
+        cursor_y += ROW_H;
+    }
+
+    // -- Properties section ---------------------------------------------------
+    cursor_y += SECTION_H;
+
+    // Visible toggle
+    if my >= cursor_y && my < cursor_y + ROW_H {
+        let toggle_x = LABEL_W + ROW_PAD_X + 4.0;
+        if hit_x >= toggle_x && hit_x < toggle_x + 60.0 {
+            if let Some(w) = scene.widgets.iter_mut().find(|w| w.id == selected_id) {
+                w.props.visible = !w.props.visible;
+            }
+        }
+    }
+    cursor_y += ROW_H;
+
+    // Editable text rows
+    let kind = scene
+        .widgets
+        .iter()
+        .find(|w| w.id == selected_id)
+        .map(|w| w.kind);
+    if let Some(kind) = kind {
+        // Label / Hint row
+        match kind {
+            WidgetKind::Label
+            | WidgetKind::Button
+            | WidgetKind::Checkbox
+            | WidgetKind::ToggleSwitch
+            | WidgetKind::Tooltip
+            | WidgetKind::Toast
+            | WidgetKind::TextInput
+            | WidgetKind::NumberInput => {
+                if my >= cursor_y && my < cursor_y + ROW_H {
+                    let val_x = LABEL_W + ROW_PAD_X;
+                    if hit_x >= val_x {
+                        // Focus the label/hint field
+                        let current = scene
+                            .widgets
+                            .iter()
+                            .find(|w| w.id == selected_id)
+                            .map(|w| w.props.label.clone())
+                            .unwrap_or_default();
+                        scene.editing_field = Some("label".to_string());
+                        scene.edit_buffer = current;
+                        return;
+                    }
+                }
+                cursor_y += ROW_H;
+            }
+            _ => {}
+        }
+
+        // Font size row (read-only)
+        match kind {
+            WidgetKind::Label | WidgetKind::Button | WidgetKind::TextInput => {
+                cursor_y += ROW_H;
+            }
+            _ => {}
+        }
+
+        // Range rows (read-only)
+        match kind {
+            WidgetKind::Slider | WidgetKind::NumberInput | WidgetKind::ProgressBar => {
+                cursor_y += ROW_H * 3.0;
+            }
+            _ => {}
+        }
+
+        // Color row
+        match kind {
+            WidgetKind::Panel | WidgetKind::Label | WidgetKind::Button => {
+                if my >= cursor_y && my < cursor_y + ROW_H {
+                    let val_x = LABEL_W + ROW_PAD_X;
+                    if hit_x >= val_x {
+                        let current = scene
+                            .widgets
+                            .iter()
+                            .find(|w| w.id == selected_id)
+                            .map(|w| w.props.color_hex.clone())
+                            .unwrap_or_default();
+                        scene.editing_field = Some("color".to_string());
+                        scene.edit_buffer = current;
+                        return;
+                    }
+                }
+                cursor_y += ROW_H;
+            }
+            _ => {}
+        }
+    }
+
+    // -- Delete button --------------------------------------------------------
+    let del_y = cursor_y + 8.0;
+    if my >= del_y && my < del_y + 28.0 && hit_x >= 10.0 && hit_x < right_w - 10.0 {
+        scene.delete_selected();
+    }
 }
 
-// ── Update ────────────────────────────────────────────────────────────────────
-
-pub fn update(_ctx: &mut AppContext, _right_w: f32, _scene: &mut SceneState) {
-    // No-op. Previously contained manual hit testing.
-}
-
-// ── Draw ──────────────────────────────────────────────────────────────────────
+// ── Draw (immediate mode) ─────────────────────────────────────────────────────
 
 pub fn draw(dc: &mut DrawContext<'_, '_>, right_w: f32, scene: &SceneState) {
     let (win_w, win_h) = dc.ctx.window_size;
-    let ww = win_w as f32;
-    let panel_h = win_h as f32 - TOP_H;
-    let panel_x = ww - right_w;
+    let panel_x = win_w as f32 - right_w;
     let (mx, my) = dc.ctx.input.mouse_pos_f32();
 
     dc.gui
-        .push_clip(Rect::new(panel_x, TOP_H, right_w, panel_h));
+        .push_clip(Rect::new(panel_x, TOP_H, right_w, win_h as f32 - TOP_H));
 
-    // ── Header ────────────────────────────────────────────────────────────────
+    // -- Header bar -----------------------------------------------------------
     dc.gui.rect(
         panel_x,
         TOP_H,
         right_w,
-        34.0,
+        HEADER_H,
         AppColor::hex("#2D2D30").to_linear_f32(),
     );
     dc.gui.draw_text(
         dc.font,
         "PROPERTIES",
-        [panel_x + PAD, TOP_H + 10.0],
+        [panel_x + ROW_PAD_X, TOP_H + 10.0],
         10.0,
         AppColor::hex("#888888").to_linear_f32(),
     );
 
+    let mut cursor_y = TOP_H + HEADER_H;
+
     let Some(selected) = scene.selected() else {
-        // Nothing selected hint
         dc.gui.draw_text(
             dc.font,
             "No widget selected",
-            [panel_x + PAD, TOP_H + 60.0],
-            11.0,
-            C_MUTED,
+            [panel_x + ROW_PAD_X, cursor_y + 10.0],
+            10.0,
+            AppColor::hex("#666666").to_linear_f32(),
         );
         dc.gui.pop_clip();
         return;
     };
 
-    // if the currently selected widget is hidden, show a reminder so the user
-    // doesn't assume the inspector has cleared
-    if !selected.props.visible {
-        dc.gui.draw_text(
-            dc.font,
-            "(hidden widget)",
-            [panel_x + PAD, TOP_H + 60.0],
-            11.0,
-            C_MUTED,
-        );
-    }
-
-    let mut cy = TOP_H + 38.0;
-
-    // Kind badge
+    // -- Kind badge -----------------------------------------------------------
     dc.gui.rect(
-        panel_x + PAD,
-        cy,
-        right_w - PAD * 2.0,
+        panel_x + ROW_PAD_X,
+        cursor_y + 5.0,
+        right_w - ROW_PAD_X * 2.0,
         22.0,
         selected.kind.color(),
     );
     dc.gui.draw_text(
         dc.font,
         selected.kind.name(),
-        [panel_x + PAD + 6.0, cy + 5.0],
-        11.0,
-        C_TEXT,
+        [panel_x + ROW_PAD_X + 6.0, cursor_y + 9.0],
+        10.0,
+        [1.0, 1.0, 1.0, 1.0],
     );
-    cy += 26.0;
+    cursor_y += 22.0 + 10.0;
 
-    // ── Transform section ────────────────────────────────────────────────────
-    section_header(dc, panel_x, cy, right_w, "Transform");
-    cy += 20.0;
-
-    let field_vals = [selected.x, selected.y, selected.w, selected.h];
-    let field_names = ["X", "Y", "W", "H"];
-    for (i, (&val, &name)) in field_vals.iter().zip(field_names.iter()).enumerate() {
-        prop_row_number(dc, panel_x, cy, right_w, mx, my, name, val, i < 2);
-        cy += ROW_H;
+    // -- Hidden hint ----------------------------------------------------------
+    if !selected.props.visible {
+        dc.gui.draw_text(
+            dc.font,
+            "(hidden widget)",
+            [panel_x + ROW_PAD_X, cursor_y + 6.0],
+            10.0,
+            AppColor::hex("#888888").to_linear_f32(),
+        );
+        cursor_y += ROW_H;
     }
-    cy += 6.0;
 
-    // ── Properties section ────────────────────────────────────────────────────
-    section_header(dc, panel_x, cy, right_w, "Properties");
-    cy += 20.0;
-
-    // Visible
-    prop_row_toggle(
+    // -- Transform section ----------------------------------------------------
+    draw_section(dc, panel_x, cursor_y, right_w, "Transform");
+    cursor_y += SECTION_H;
+    draw_number_row(
         dc,
         panel_x,
-        cy,
+        cursor_y,
         right_w,
         mx,
         my,
-        "Visible",
-        selected.props.visible,
+        "X",
+        &format!("{:.0}", selected.x),
     );
-    cy += ROW_H;
+    cursor_y += ROW_H;
+    draw_number_row(
+        dc,
+        panel_x,
+        cursor_y,
+        right_w,
+        mx,
+        my,
+        "Y",
+        &format!("{:.0}", selected.y),
+    );
+    cursor_y += ROW_H;
+    draw_number_row(
+        dc,
+        panel_x,
+        cursor_y,
+        right_w,
+        mx,
+        my,
+        "W",
+        &format!("{:.0}", selected.w),
+    );
+    cursor_y += ROW_H;
+    draw_number_row(
+        dc,
+        panel_x,
+        cursor_y,
+        right_w,
+        mx,
+        my,
+        "H",
+        &format!("{:.0}", selected.h),
+    );
+    cursor_y += ROW_H;
 
-    // Label (if applicable)
+    // -- Properties section ---------------------------------------------------
+    draw_section(dc, panel_x, cursor_y, right_w, "Properties");
+    cursor_y += SECTION_H;
+
+    // Visible toggle
+    draw_row_label(dc, panel_x, cursor_y, "Visible");
+    let toggle_x = panel_x + ROW_PAD_X + LABEL_W + 4.0;
+    let hov_toggle =
+        mx >= toggle_x && mx < toggle_x + 60.0 && my >= cursor_y && my < cursor_y + ROW_H;
+    draw_button(
+        dc,
+        toggle_x,
+        cursor_y + 3.0,
+        60.0,
+        ROW_H - 6.0,
+        if selected.props.visible { "On" } else { "Off" },
+        hov_toggle,
+    );
+    cursor_y += ROW_H;
+
+    // Label / Hint
+    let label_focused = scene.editing_field.as_deref() == Some("label");
+    let label_value = if label_focused {
+        scene.edit_buffer.as_str()
+    } else {
+        selected.props.label.as_str()
+    };
     match selected.kind {
         WidgetKind::Label
         | WidgetKind::Button
@@ -143,471 +377,312 @@ pub fn draw(dc: &mut DrawContext<'_, '_>, right_w: f32, scene: &SceneState) {
         | WidgetKind::ToggleSwitch
         | WidgetKind::Tooltip
         | WidgetKind::Toast => {
-            prop_row_text(dc, panel_x, cy, right_w, "Label", &selected.props.label);
-            cy += ROW_H;
+            draw_text_row(
+                dc,
+                panel_x,
+                cursor_y,
+                right_w,
+                "Label",
+                label_value,
+                label_focused,
+            );
+            cursor_y += ROW_H;
         }
         WidgetKind::TextInput | WidgetKind::NumberInput => {
-            prop_row_text(dc, panel_x, cy, right_w, "Hint", &selected.props.label);
-            cy += ROW_H;
+            draw_text_row(
+                dc,
+                panel_x,
+                cursor_y,
+                right_w,
+                "Hint",
+                label_value,
+                label_focused,
+            );
+            cursor_y += ROW_H;
         }
         _ => {}
     }
 
-    // Font size (for text-bearing widgets)
+    // Font size
     match selected.kind {
         WidgetKind::Label | WidgetKind::Button | WidgetKind::TextInput => {
-            prop_row_number(
+            draw_info_row(
                 dc,
                 panel_x,
-                cy,
+                cursor_y,
                 right_w,
-                mx,
-                my,
                 "Size",
-                selected.props.font_size,
-                false,
+                &format!("{:.0}", selected.props.font_size),
             );
-            cy += ROW_H;
+            cursor_y += ROW_H;
         }
         _ => {}
     }
 
-    // Slider / NumberInput range
+    // Range
     match selected.kind {
         WidgetKind::Slider | WidgetKind::NumberInput | WidgetKind::ProgressBar => {
-            prop_row_number(
+            draw_info_row(
                 dc,
                 panel_x,
-                cy,
+                cursor_y,
                 right_w,
-                mx,
-                my,
                 "Min",
-                selected.props.min,
-                false,
+                &format!("{:.0}", selected.props.min),
             );
-            cy += ROW_H;
-            prop_row_number(
+            cursor_y += ROW_H;
+            draw_info_row(
                 dc,
                 panel_x,
-                cy,
+                cursor_y,
                 right_w,
-                mx,
-                my,
                 "Max",
-                selected.props.max,
-                false,
+                &format!("{:.0}", selected.props.max),
             );
-            cy += ROW_H;
-            prop_row_number(
+            cursor_y += ROW_H;
+            draw_info_row(
                 dc,
                 panel_x,
-                cy,
+                cursor_y,
                 right_w,
-                mx,
-                my,
                 "Val",
-                selected.props.value,
-                false,
+                &format!("{:.0}", selected.props.value),
             );
-            cy += ROW_H;
+            cursor_y += ROW_H;
         }
         _ => {}
     }
 
     // Color hex
+    let color_focused = scene.editing_field.as_deref() == Some("color");
+    let color_value = if color_focused {
+        scene.edit_buffer.as_str()
+    } else {
+        selected.props.color_hex.as_str()
+    };
     match selected.kind {
         WidgetKind::Panel | WidgetKind::Label | WidgetKind::Button => {
-            prop_row_text(dc, panel_x, cy, right_w, "Color", &selected.props.color_hex);
-            cy += ROW_H;
+            draw_text_row(
+                dc,
+                panel_x,
+                cursor_y,
+                right_w,
+                "Color",
+                color_value,
+                color_focused,
+            );
+            cursor_y += ROW_H;
         }
         _ => {}
     }
 
-    cy += 8.0;
-
-    // ── Delete button ─────────────────────────────────────────────────────────
-    let del_x = panel_x + PAD;
-    let del_w = right_w - PAD * 2.0;
-    let del_y = cy;
-    let hov_del = hit(mx, my, del_x, del_y, del_w, 28.0);
-    dc.gui.rect(
-        del_x,
-        del_y,
-        del_w,
-        28.0,
-        if hov_del { C_DELETE_H } else { C_DELETE },
-    );
-    dc.gui.draw_text(
-        dc.font,
-        "Delete Widget",
-        [del_x + 8.0, del_y + 8.0],
-        11.0,
-        C_TEXT,
-    );
+    // -- Delete button --------------------------------------------------------
+    let del_y = cursor_y + 8.0;
+    let del_x = panel_x + 10.0;
+    let del_w = right_w - 20.0;
+    let hov_del = mx >= del_x && mx < del_x + del_w && my >= del_y && my < del_y + 28.0;
+    draw_button(dc, del_x, del_y, del_w, 28.0, "Delete Widget", hov_del);
 
     dc.gui.pop_clip();
-}
-
-// ── Sub-draw helpers ──────────────────────────────────────────────────────────
-
-fn section_header(dc: &mut DrawContext<'_, '_>, px: f32, cy: f32, rw: f32, title: &str) {
-    dc.gui.rect(px, cy, rw, 18.0, C_SECTION);
-    // accent line
-    dc.gui.rect(px, cy + 16.0, rw, 2.0, C_ACCENT);
-    dc.gui
-        .draw_text(dc.font, title, [px + PAD, cy + 3.0], 10.0, C_MUTED);
-}
-
-fn prop_row_number(
-    dc: &mut DrawContext<'_, '_>,
-    px: f32,
-    cy: f32,
-    rw: f32,
-    mx: f32,
-    my: f32,
-    label: &str,
-    val: f32,
-    _can_be_neg: bool,
-) {
-    dc.gui
-        .draw_text(dc.font, label, [px + PAD, cy + 7.0], 10.0, C_MUTED);
-
-    let field_x = px + PAD + LABEL_W;
-    let field_w = rw - PAD * 2.0 - LABEL_W - 50.0;
-    let btn_m_x = field_x + field_w + 2.0;
-    let btn_p_x = btn_m_x + 24.0;
-
-    // Field bg
-    dc.gui.rect(field_x, cy + 3.0, field_w, FIELD_H, C_FIELD_BG);
-    dc.gui.rect(field_x, cy + 3.0, 1.0, FIELD_H, C_FIELD_BORDER);
-    dc.gui.rect(field_x, cy + 3.0, field_w, 1.0, C_FIELD_BORDER);
-    dc.gui.rect(
-        field_x,
-        cy + 3.0 + FIELD_H - 1.0,
-        field_w,
-        1.0,
-        C_FIELD_BORDER,
-    );
-    dc.gui.rect(
-        field_x + field_w - 1.0,
-        cy + 3.0,
-        1.0,
-        FIELD_H,
-        C_FIELD_BORDER,
-    );
-
-    dc.gui.draw_text(
-        dc.font,
-        &format!("{:.0}", val),
-        [field_x + 4.0, cy + 6.0],
-        10.0,
-        C_TEXT,
-    );
-
-    // – button
-    let hov_m = hit(mx, my, btn_m_x, cy + 3.0, 22.0, FIELD_H);
-    dc.gui.rect(
-        btn_m_x,
-        cy + 3.0,
-        22.0,
-        FIELD_H,
-        if hov_m {
-            [0.267, 0.267, 0.267, 1.0]
-        } else {
-            [0.18, 0.18, 0.18, 1.0]
-        },
-    );
-    dc.gui
-        .draw_text(dc.font, "−", [btn_m_x + 6.0, cy + 4.0], 12.0, C_TEXT);
-
-    // + button
-    let hov_p = hit(mx, my, btn_p_x, cy + 3.0, 22.0, FIELD_H);
-    dc.gui.rect(
-        btn_p_x,
-        cy + 3.0,
-        22.0,
-        FIELD_H,
-        if hov_p {
-            [0.267, 0.267, 0.267, 1.0]
-        } else {
-            [0.18, 0.18, 0.18, 1.0]
-        },
-    );
-    dc.gui
-        .draw_text(dc.font, "+", [btn_p_x + 6.0, cy + 4.0], 12.0, C_TEXT);
-}
-
-fn prop_row_text(
-    dc: &mut DrawContext<'_, '_>,
-    px: f32,
-    cy: f32,
-    rw: f32,
-    label: &str,
-    value: &str,
-) {
-    dc.gui
-        .draw_text(dc.font, label, [px + PAD, cy + 7.0], 10.0, C_MUTED);
-
-    let field_x = px + PAD + LABEL_W;
-    let field_w = rw - PAD * 2.0 - LABEL_W;
-    dc.gui.rect(field_x, cy + 3.0, field_w, FIELD_H, C_FIELD_BG);
-    dc.gui.rect(field_x, cy + 3.0, 1.0, FIELD_H, C_FIELD_BORDER);
-    dc.gui.rect(field_x, cy + 3.0, field_w, 1.0, C_FIELD_BORDER);
-    dc.gui.rect(
-        field_x,
-        cy + 3.0 + FIELD_H - 1.0,
-        field_w,
-        1.0,
-        C_FIELD_BORDER,
-    );
-    dc.gui.rect(
-        field_x + field_w - 1.0,
-        cy + 3.0,
-        1.0,
-        FIELD_H,
-        C_FIELD_BORDER,
-    );
-
-    // Truncate text to fit
-    let display = if value.len() > 20 {
-        &value[..20]
-    } else {
-        value
-    };
-    dc.gui
-        .draw_text(dc.font, display, [field_x + 4.0, cy + 6.0], 10.0, C_TEXT);
-}
-
-fn prop_row_toggle(
-    dc: &mut DrawContext<'_, '_>,
-    px: f32,
-    cy: f32,
-    rw: f32,
-    mx: f32,
-    my: f32,
-    label: &str,
-    checked: bool,
-) {
-    dc.gui
-        .draw_text(dc.font, label, [px + PAD, cy + 7.0], 10.0, C_MUTED);
-
-    let toggle_x = px + PAD + LABEL_W;
-    let _hov = hit(mx, my, toggle_x, cy + 4.0, 36.0, 20.0);
-    // Track
-    let track_col = if checked { C_ACCENT } else { C_FIELD_BG };
-    dc.gui.rect(toggle_x, cy + 4.0, 36.0, 20.0, track_col);
-    // Knob
-    let knob_x = if checked {
-        toggle_x + 18.0
-    } else {
-        toggle_x + 2.0
-    };
-    dc.gui.rect(knob_x, cy + 6.0, 16.0, 16.0, C_TEXT);
-    // Label hint
-    let state_label = if checked { "On" } else { "Off" };
-    dc.gui.draw_text(
-        dc.font,
-        state_label,
-        [toggle_x + 42.0, cy + 7.0],
-        10.0,
-        C_MUTED,
-    );
-
-    let _ = rw; // suppress unused warning
 }
 
 // ── Background / border ───────────────────────────────────────────────────────
 
 pub fn draw_background(dc: &mut DrawContext<'_, '_>, right_w: f32) {
     let (win_w, win_h) = dc.ctx.window_size;
-    let ww = win_w as f32;
-    let panel_h = win_h as f32 - TOP_H;
-    let right_x = ww - right_w;
+    let right_x = win_w as f32 - right_w;
     dc.gui.rect(
         right_x,
         TOP_H,
         right_w,
-        panel_h,
+        win_h as f32 - TOP_H,
         AppColor::hex("#252526").to_linear_f32(),
     );
 }
 
 pub fn draw_border(dc: &mut DrawContext<'_, '_>, right_w: f32) {
     let (win_w, win_h) = dc.ctx.window_size;
-    let ww = win_w as f32;
-    let canvas_h = win_h as f32 - TOP_H;
-    let right_x = ww - right_w;
-    dc.gui.rect(right_x, TOP_H, 2.0, canvas_h, c_border());
+    let right_x = win_w as f32 - right_w;
+    dc.gui
+        .rect(right_x, TOP_H, 2.0, win_h as f32 - TOP_H, c_border());
 }
 
-pub fn configure_ui(ui: &mut UiTree<GUIMakerApp>, right_panel_id: NodeId, scene: &SceneState) {
-    let Some(selected) = scene.selected() else {
-        let label = Label::new("No widget selected").with_style(StyleBuilder::new().padding_all(20.0).build());
-        ui.add_node(Box::new(label), Some(right_panel_id));
-        return;
-    };
+// ── Draw helpers ─────────────────────────────────────────────────────────────
 
-    // Skip redundant rebuild check if needed, but for now we'll rely on the main.rs
-    // clear_node_children logic.
-    
-    // Adjust right_panel_id layout
-    ui.set_node_style(
-        right_panel_id,
-        StyleBuilder::new()
-            .padding_all(0.0)
-            .padding_top(38.0) // Space for header badge
-            .build(),
+fn draw_section(dc: &mut DrawContext<'_, '_>, panel_x: f32, y: f32, right_w: f32, title: &str) {
+    dc.gui.rect(
+        panel_x,
+        y,
+        right_w,
+        SECTION_H,
+        AppColor::hex("#2D2D30").to_linear_f32(),
     );
-
-    // Header Badge
-    let kind_name = selected.kind.name().to_string();
-    let col_arr = selected.kind.color();
-    let badge = Panel::new().with_color(Color::new(col_arr[0], col_arr[1], col_arr[2], col_arr[3]));
-    let badge_id = ui.add_node(Box::new(badge), Some(right_panel_id));
-    ui.set_node_style(
-        badge_id,
-        StyleBuilder::new()
-            .height_px(22.0)
-            .margin_xy(10.0, 5.0)
-            .build(),
-    );
-    let badge_text = Label::new(&kind_name);
-    ui.add_node(Box::new(badge_text), Some(badge_id));
-
-    // Sections
-    add_section(ui, right_panel_id, "Transform");
-    add_transform_row(ui, right_panel_id, "X", selected.id, 0);
-    add_transform_row(ui, right_panel_id, "Y", selected.id, 1);
-    add_transform_row(ui, right_panel_id, "W", selected.id, 2);
-    add_transform_row(ui, right_panel_id, "H", selected.id, 3);
-
-    add_section(ui, right_panel_id, "Properties");
-    add_toggle_row(ui, right_panel_id, "Visible", selected.id);
-
-    // Spacer
-    let spacer = Panel::new().with_color(Color::hex("#00000000"));
-    let spacer_id = ui.add_node(Box::new(spacer), Some(right_panel_id));
-    ui.set_node_style(spacer_id, StyleBuilder::new().flex(1.0).build());
-
-    // Delete Button
-    let del_btn = Button::new("Delete Widget").on_click(|ctx: &mut EventContext<GUIMakerApp>| {
-        ctx.app.scene.delete_selected();
-    });
-    let del_id = ui.add_node(Box::new(del_btn), Some(right_panel_id));
-    ui.set_node_style(
-        del_id,
-        StyleBuilder::new()
-            .margin_all(10.0)
-            .height_px(28.0)
-            .build(),
+    dc.gui.draw_text(
+        dc.font,
+        title,
+        [panel_x + ROW_PAD_X, y + 4.0],
+        10.0,
+        AppColor::hex("#AAAAAA").to_linear_f32(),
     );
 }
 
-fn add_section(ui: &mut UiTree<GUIMakerApp>, parent: NodeId, title: &str) {
-    let section = Panel::new().with_color(Color::hex("#2D2D30"));
-    let sec_id = ui.add_node(Box::new(section), Some(parent));
-    ui.set_node_style(
-        sec_id,
-        StyleBuilder::new().height_px(20.0).padding_all(2.0).build(),
+fn draw_row_label(dc: &mut DrawContext<'_, '_>, panel_x: f32, y: f32, label: &str) {
+    dc.gui.draw_text(
+        dc.font,
+        label,
+        [panel_x + ROW_PAD_X, y + 7.0],
+        10.0,
+        AppColor::hex("#CCCCCC").to_linear_f32(),
     );
-    let lbl = Label::new(title);
-    ui.add_node(Box::new(lbl), Some(sec_id));
 }
 
-fn add_transform_row(
-    ui: &mut UiTree<GUIMakerApp>,
-    parent: NodeId,
+fn draw_button(
+    dc: &mut DrawContext<'_, '_>,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
     label: &str,
-    widget_id: u32,
-    field: u8,
+    hovered: bool,
 ) {
-    let row = Panel::new().with_color(Color::hex("#00000000"));
-    let row_id = ui.add_node(Box::new(row), Some(parent));
-    ui.set_node_style(
-        row_id,
-        StyleBuilder::new()
-            .row()
-            .height_px(28.0)
-            .padding_xy(10.0, 3.0)
-            .build(),
-    );
-
-    let lbl = Label::new(label);
-    let lbl_id = ui.add_node(Box::new(lbl), Some(row_id));
-    ui.set_node_style(lbl_id, StyleBuilder::new().width_px(54.0).build());
-
-    // Value label (simplified, using Label instead of full TextInput for now)
-    let val_box = Panel::new().with_color(Color::hex("#191919"));
-    let val_id = ui.add_node(Box::new(val_box), Some(row_id));
-    ui.set_node_style(
-        val_id,
-        StyleBuilder::new().flex(1.0).margin_xy(0.0, 0.0).build(),
-    );
-
-    // Buttons
-    let m_btn = Button::new("-").on_click(move |ctx: &mut EventContext<GUIMakerApp>| {
-        if let Some(w) = ctx.app.scene.widgets.iter_mut().find(|w| w.id == widget_id) {
-            match field {
-                0 => w.x -= 1.0,
-                1 => w.y -= 1.0,
-                2 => w.w = (w.w - 1.0).max(8.0),
-                3 => w.h = (w.h - 1.0).max(8.0),
-                _ => {}
-            }
-        }
-    });
-    let m_id = ui.add_node(Box::new(m_btn), Some(row_id));
-    ui.set_node_style(
-        m_id,
-        StyleBuilder::new()
-            .width_px(22.0)
-            .margin_xy(2.0, 0.0)
-            .build(),
-    );
-
-    let p_btn = Button::new("+").on_click(move |ctx: &mut EventContext<GUIMakerApp>| {
-        if let Some(w) = ctx.app.scene.widgets.iter_mut().find(|w| w.id == widget_id) {
-            match field {
-                0 => w.x += 1.0,
-                1 => w.y += 1.0,
-                2 => w.w += 1.0,
-                3 => w.h += 1.0,
-                _ => {}
-            }
-        }
-    });
-    let p_id = ui.add_node(Box::new(p_btn), Some(row_id));
-    ui.set_node_style(
-        p_id,
-        StyleBuilder::new()
-            .width_px(22.0)
-            .margin_xy(2.0, 0.0)
-            .build(),
+    let bg = if hovered {
+        AppColor::hex("#0078D4").to_linear_f32()
+    } else {
+        AppColor::hex("#3C3C3C").to_linear_f32()
+    };
+    dc.gui.rect(x, y, w, h, bg);
+    dc.gui.draw_text(
+        dc.font,
+        label,
+        [x + 4.0, y + (h - 10.0) * 0.5],
+        10.0,
+        [1.0, 1.0, 1.0, 1.0],
     );
 }
 
-fn add_toggle_row(ui: &mut UiTree<GUIMakerApp>, parent: NodeId, label: &str, widget_id: u32) {
-    let row = Panel::new().with_color(Color::hex("#00000000"));
-    let row_id = ui.add_node(Box::new(row), Some(parent));
-    ui.set_node_style(
-        row_id,
-        StyleBuilder::new()
-            .row()
-            .height_px(28.0)
-            .padding_xy(10.0, 4.0)
-            .build(),
+fn draw_number_row(
+    dc: &mut DrawContext<'_, '_>,
+    panel_x: f32,
+    y: f32,
+    right_w: f32,
+    mx: f32,
+    my: f32,
+    label: &str,
+    value: &str,
+) {
+    draw_row_label(dc, panel_x, y, label);
+    let val_x = panel_x + ROW_PAD_X + LABEL_W;
+    let val_w = right_w - ROW_PAD_X * 2.0 - LABEL_W - BTN_W * 2.0 - 8.0;
+    dc.gui.rect(
+        val_x,
+        y + 3.0,
+        val_w,
+        ROW_H - 6.0,
+        AppColor::hex("#191919").to_linear_f32(),
     );
+    dc.gui.draw_text(
+        dc.font,
+        value,
+        [val_x + 4.0, y + 7.0],
+        10.0,
+        AppColor::hex("#DDDDDD").to_linear_f32(),
+    );
+    let minus_x = panel_x + right_w - ROW_PAD_X - BTN_W * 2.0 - 4.0;
+    let plus_x = panel_x + right_w - ROW_PAD_X - BTN_W;
+    let hov_m = mx >= minus_x && mx < minus_x + BTN_W && my >= y && my < y + ROW_H;
+    let hov_p = mx >= plus_x && mx < plus_x + BTN_W && my >= y && my < y + ROW_H;
+    draw_button(dc, minus_x, y + 3.0, BTN_W, ROW_H - 6.0, "-", hov_m);
+    draw_button(dc, plus_x, y + 3.0, BTN_W, ROW_H - 6.0, "+", hov_p);
+}
 
-    let lbl = Label::new(label);
-    let lbl_id = ui.add_node(Box::new(lbl), Some(row_id));
-    ui.set_node_style(lbl_id, StyleBuilder::new().width_px(54.0).build());
+fn draw_text_row(
+    dc: &mut DrawContext<'_, '_>,
+    panel_x: f32,
+    y: f32,
+    right_w: f32,
+    label: &str,
+    value: &str,
+    focused: bool,
+) {
+    draw_row_label(dc, panel_x, y, label);
+    let val_x = panel_x + ROW_PAD_X + LABEL_W;
+    let val_w = right_w - ROW_PAD_X * 2.0 - LABEL_W;
+    let bg = if focused {
+        AppColor::hex("#1E3A5F").to_linear_f32()
+    } else {
+        AppColor::hex("#191919").to_linear_f32()
+    };
+    dc.gui.rect(val_x, y + 3.0, val_w, ROW_H - 6.0, bg);
+    if focused {
+        // Highlight border
+        dc.gui.rect(
+            val_x,
+            y + 3.0,
+            val_w,
+            1.0,
+            AppColor::hex("#0078D4").to_linear_f32(),
+        );
+        dc.gui.rect(
+            val_x,
+            y + ROW_H - 4.0,
+            val_w,
+            1.0,
+            AppColor::hex("#0078D4").to_linear_f32(),
+        );
+        dc.gui.rect(
+            val_x,
+            y + 3.0,
+            1.0,
+            ROW_H - 6.0,
+            AppColor::hex("#0078D4").to_linear_f32(),
+        );
+        dc.gui.rect(
+            val_x + val_w - 1.0,
+            y + 3.0,
+            1.0,
+            ROW_H - 6.0,
+            AppColor::hex("#0078D4").to_linear_f32(),
+        );
+    }
+    // Show value with cursor appended when focused
+    let display_value = if focused {
+        let s = if value.len() > 17 {
+            &value[value.len() - 17..]
+        } else {
+            value
+        };
+        let mut s = s.to_string();
+        s.push('|');
+        s
+    } else {
+        let s = if value.len() > 18 {
+            &value[..18]
+        } else {
+            value
+        };
+        s.to_string()
+    };
+    let text_color = if focused {
+        [1.0f32, 1.0, 1.0, 1.0]
+    } else {
+        AppColor::hex("#DDDDDD").to_linear_f32()
+    };
+    dc.gui.draw_text(
+        dc.font,
+        &display_value,
+        [val_x + 4.0, y + 7.0],
+        10.0,
+        text_color,
+    );
+}
 
-    let toggle_btn = Button::new("Toggle").on_click(move |ctx: &mut EventContext<GUIMakerApp>| {
-        if let Some(w) = ctx.app.scene.widgets.iter_mut().find(|w| w.id == widget_id) {
-            w.props.visible = !w.props.visible;
-        }
-    });
-    let t_id = ui.add_node(Box::new(toggle_btn), Some(row_id));
-    ui.set_node_style(t_id, StyleBuilder::new().width_px(60.0).build());
+fn draw_info_row(
+    dc: &mut DrawContext<'_, '_>,
+    panel_x: f32,
+    y: f32,
+    right_w: f32,
+    label: &str,
+    value: &str,
+) {
+    draw_text_row(dc, panel_x, y, right_w, label, value, false);
 }
