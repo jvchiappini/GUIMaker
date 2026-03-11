@@ -5,3 +5,4 @@ pub mod right_panel;
 pub mod settings;
 pub mod top_bar;
 pub mod widget_editor;
+pub mod widgets;

@@ -3,7 +3,7 @@ use ferrous_ui_core::Rect;
 
 use crate::{
     c_canvas, c_grid,
-    panels::widget_editor::{self/*, radius_handle_pos*/},
+    panels::{widget_editor, widgets::button::radius_handle_pos},
     scene::SceneState,
     PreviewDrag, TOP_H,
 };
@@ -163,18 +163,19 @@ pub fn update(
                         let _sy = origin_sy + w.y * *zoom - sh * 0.5;
 
                         let half = (sw.min(sh)) * 0.5;
-                        let _radii = [
+                        let radii = [
                             (w.props.border_radii[0] * *zoom).min(half),
                             (w.props.border_radii[1] * *zoom).min(half),
                             (w.props.border_radii[2] * *zoom).min(half),
                             (w.props.border_radii[3] * *zoom).min(half),
                         ];
 
-                        // handle-detection code used to call `radius_handle_pos`, which
-                        // has been removed during refactor; skip for now and always
-                        // return `None` so nothing is considered active.
-                        let found = None;
-                        found
+                        let found = (0..4).find(|&c| {
+                            let (hx, hy) = radius_handle_pos(_sx, _sy, sw, sh, &radii, c);
+                            (mx - hx).abs() <= RADIUS_HANDLE_HIT
+                                && (my - hy).abs() <= RADIUS_HANDLE_HIT
+                        });
+                        found.map(|c| (w.id, c))
                     } else {
                         None
                     }
