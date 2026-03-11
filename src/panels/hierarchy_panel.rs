@@ -130,10 +130,10 @@ pub fn draw_hierarchy(
             .rect(0.0, cursor_y + 3.0, 3.0, ITEM_H - 6.0, w.kind.color());
 
         // Widget name (kind + label)
-        let label = if !w.props.label.is_empty() && w.props.label != w.kind.name() {
-            format!("{} — {}", w.kind.name(), &w.props.label)
+        let label = if !w.props.label.is_empty() && w.props.label != w.kind.display_name() {
+            format!("{} — {}", w.kind.display_name(), &w.props.label)
         } else {
-            w.kind.name().to_string()
+            w.kind.display_name().to_string()
         };
 
         // visible widgets are bright; hidden ones use the same colour but

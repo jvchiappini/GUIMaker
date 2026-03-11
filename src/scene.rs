@@ -1,166 +1,37 @@
 // ── Scene state ────────────────────────────────────────────────────────────────
 //
 // Holds all placed widgets and the selection / drag state for the scene builder.
+//
+// `WidgetKind`, `WidgetCategory`, `PaletteCategory`, and `WIDGET_REGISTRY` live
+// in `ferrous_ui_core` — the single source of truth. We re-export them here so
+// the rest of GUIMaker can keep importing from `scene` unchanged.
+use ferrous_ui_core::TextFieldState;
 
-/// Every widget kind available in the palette.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum WidgetKind {
-    // Basic
-    Label,
-    Button,
-    Panel,
-    Separator,
-    Spacer,
-    Placeholder,
-    // Input
-    TextInput,
-    Checkbox,
-    Slider,
-    NumberInput,
-    ToggleSwitch,
-    DropDown,
-    ColorPicker,
-    // Layout
-    ScrollView,
-    SplitPane,
-    DockLayout,
-    AspectRatio,
-    // Display
-    Image,
-    Svg,
-    ProgressBar,
-    // Navigation / Containers
-    Tabs,
-    Accordion,
-    TreeView,
-    Modal,
-    Tooltip,
-    // Data
-    DataTable,
-    VirtualList,
-    VirtualGrid,
-    // Feedback
-    Toast,
-}
+pub use ferrous_ui_core::WidgetKind;
+/// Alias kept for backward compat within this binary.
+pub use ferrous_ui_core::WIDGET_REGISTRY as PALETTE;
+// Re-export alignment types so the rest of GUIMaker can import from scene
+pub use ferrous_ui_core::{HAlign, TextAlign, VAlign};
 
-impl WidgetKind {
-    pub fn name(self) -> &'static str {
-        match self {
-            WidgetKind::Label => "Label",
-            WidgetKind::Button => "Button",
-            WidgetKind::Panel => "Panel",
-            WidgetKind::Separator => "Separator",
-            WidgetKind::Spacer => "Spacer",
-            WidgetKind::Placeholder => "Placeholder",
-            WidgetKind::TextInput => "Text Input",
-            WidgetKind::Checkbox => "Checkbox",
-            WidgetKind::Slider => "Slider",
-            WidgetKind::NumberInput => "Number Input",
-            WidgetKind::ToggleSwitch => "Toggle Switch",
-            WidgetKind::DropDown => "Drop Down",
-            WidgetKind::ColorPicker => "Color Picker",
-            WidgetKind::ScrollView => "Scroll View",
-            WidgetKind::SplitPane => "Split Pane",
-            WidgetKind::DockLayout => "Dock Layout",
-            WidgetKind::AspectRatio => "Aspect Ratio",
-            WidgetKind::Image => "Image",
-            WidgetKind::Svg => "Svg",
-            WidgetKind::ProgressBar => "Progress Bar",
-            WidgetKind::Tabs => "Tabs",
-            WidgetKind::Accordion => "Accordion",
-            WidgetKind::TreeView => "Tree View",
-            WidgetKind::Modal => "Modal",
-            WidgetKind::Tooltip => "Tooltip",
-            WidgetKind::DataTable => "Data Table",
-            WidgetKind::VirtualList => "Virtual List",
-            WidgetKind::VirtualGrid => "Virtual Grid",
-            WidgetKind::Toast => "Toast",
-        }
-    }
+// ─────────────────────────────────────────────────────────────────────────────
+// (All WidgetKind/impl WidgetKind/PaletteCategory/PALETTE definitions have been
+//  moved to ferrous_ui_core::widgets::widget_meta)
+// ─────────────────────────────────────────────────────────────────────────────
 
-    /// Accent / tint color per category, as linear RGBA.
-    pub fn color(self) -> [f32; 4] {
-        match self {
-            // Basic — blue
-            WidgetKind::Label
-            | WidgetKind::Button
-            | WidgetKind::Panel
-            | WidgetKind::Separator
-            | WidgetKind::Spacer
-            | WidgetKind::Placeholder => [0.18, 0.46, 0.71, 0.85],
-            // Input — green
-            WidgetKind::TextInput
-            | WidgetKind::Checkbox
-            | WidgetKind::Slider
-            | WidgetKind::NumberInput
-            | WidgetKind::ToggleSwitch
-            | WidgetKind::DropDown
-            | WidgetKind::ColorPicker => [0.20, 0.63, 0.35, 0.85],
-            // Layout — purple
-            WidgetKind::ScrollView
-            | WidgetKind::SplitPane
-            | WidgetKind::DockLayout
-            | WidgetKind::AspectRatio => [0.55, 0.30, 0.80, 0.85],
-            // Display — orange
-            WidgetKind::Image | WidgetKind::Svg | WidgetKind::ProgressBar => {
-                [0.85, 0.50, 0.10, 0.85]
-            }
-            // Navigation — teal
-            WidgetKind::Tabs
-            | WidgetKind::Accordion
-            | WidgetKind::TreeView
-            | WidgetKind::Modal
-            | WidgetKind::Tooltip => [0.10, 0.65, 0.65, 0.85],
-            // Data — pink
-            WidgetKind::DataTable | WidgetKind::VirtualList | WidgetKind::VirtualGrid => {
-                [0.75, 0.20, 0.50, 0.85]
-            }
-            // Feedback — yellow
-            WidgetKind::Toast => [0.80, 0.70, 0.10, 0.85],
-        }
-    }
-
-    /// Default size when dropped onto the canvas (world units).
-    pub fn default_size(self) -> (f32, f32) {
-        match self {
-            WidgetKind::Separator => (200.0, 4.0),
-            WidgetKind::Spacer => (80.0, 20.0),
-            WidgetKind::Placeholder => (120.0, 60.0),
-            WidgetKind::Panel => (200.0, 150.0),
-            WidgetKind::ScrollView => (220.0, 180.0),
-            WidgetKind::SplitPane => (300.0, 200.0),
-            WidgetKind::DockLayout => (320.0, 220.0),
-            WidgetKind::AspectRatio => (160.0, 90.0),
-            WidgetKind::DataTable => (360.0, 200.0),
-            WidgetKind::VirtualList => (200.0, 200.0),
-            WidgetKind::VirtualGrid => (280.0, 200.0),
-            WidgetKind::Tabs => (280.0, 160.0),
-            WidgetKind::Accordion => (240.0, 120.0),
-            WidgetKind::TreeView => (200.0, 180.0),
-            WidgetKind::Modal => (320.0, 200.0),
-            WidgetKind::Image => (120.0, 90.0),
-            WidgetKind::Svg => (64.0, 64.0),
-            WidgetKind::ProgressBar => (200.0, 20.0),
-            WidgetKind::ColorPicker => (180.0, 220.0),
-            WidgetKind::Slider => (160.0, 28.0),
-            WidgetKind::ToggleSwitch => (80.0, 28.0),
-            WidgetKind::DropDown => (160.0, 32.0),
-            WidgetKind::Checkbox => (140.0, 28.0),
-            WidgetKind::NumberInput => (120.0, 32.0),
-            WidgetKind::TextInput => (160.0, 32.0),
-            WidgetKind::Toast => (260.0, 48.0),
-            WidgetKind::Tooltip => (140.0, 36.0),
-            WidgetKind::Button => (100.0, 34.0),
-            WidgetKind::Label => (100.0, 22.0),
-        }
-    }
-}
-
+// Placeholder so we can reuse the old enum-start marker for the replacement
+// block below.  Immediately removed.
 /// Properties editable in the inspector panel.
 #[derive(Clone, Debug)]
 pub struct WidgetProps {
     pub label: String,
     pub color_hex: String,
+    /// Button background color (hex). Defaults to theme primary "#6C63FF".
+    pub bg_color_hex: String,
+    /// Button text color (hex). Defaults to theme on_primary "#FFFFFF".
+    pub text_color_hex: String,
+    /// Button border radii [top-left, top-right, bottom-right, bottom-left] in px.
+    /// Each corner defaults to 6.0 (theme dark default).
+    pub border_radii: [f32; 4],
     pub visible: bool,
     pub font_size: f32,
     // For sliders / number inputs
@@ -169,6 +40,45 @@ pub struct WidgetProps {
     pub value: f32,
     // For checkboxes / toggles
     pub checked: bool,
+    /// Horizontal alignment of the label text within the widget bounds.
+    pub label_h_align: HAlign,
+    /// Vertical alignment of the label text within the widget bounds.
+    pub label_v_align: VAlign,
+    /// Custom offset value (px or %) used when h_align == Custom.
+    pub label_h_custom: f32,
+    /// Whether `label_h_custom` is a percentage (true) or pixel offset (false).
+    pub label_h_custom_pct: bool,
+    /// Custom offset value (px or %) used when v_align == Custom.
+    pub label_v_custom: f32,
+    /// Whether `label_v_custom` is a percentage (true) or pixel offset (false).
+    pub label_v_custom_pct: bool,
+    /// Pivot for horizontal custom alignment (0.0 = left edge of text, 0.5 = center, 1.0 = right edge).
+    pub label_h_pivot: f32,
+    /// Pivot for vertical custom alignment (0.0 = top edge of text, 0.5 = center, 1.0 = bottom edge).
+    pub label_v_pivot: f32,
+}
+
+impl WidgetProps {
+    /// Builds a `TextAlign` from the stored alignment properties.
+    pub fn text_align(&self) -> TextAlign {
+        let h = match self.label_h_align {
+            HAlign::Custom { .. } => HAlign::Custom {
+                value: self.label_h_custom,
+                percent: self.label_h_custom_pct,
+                pivot: self.label_h_pivot,
+            },
+            other => other,
+        };
+        let v = match self.label_v_align {
+            VAlign::Custom { .. } => VAlign::Custom {
+                value: self.label_v_custom,
+                percent: self.label_v_custom_pct,
+                pivot: self.label_v_pivot,
+            },
+            other => other,
+        };
+        TextAlign::new(h, v)
+    }
 }
 
 impl Default for WidgetProps {
@@ -176,12 +86,23 @@ impl Default for WidgetProps {
         Self {
             label: String::new(),
             color_hex: "#FFFFFF".to_string(),
+            bg_color_hex: "#6C63FF".to_string(),
+            text_color_hex: "#FFFFFF".to_string(),
+            border_radii: [6.0; 4],
             visible: true,
             font_size: 14.0,
             min: 0.0,
             max: 100.0,
             value: 50.0,
             checked: false,
+            label_h_align: HAlign::Center,
+            label_v_align: VAlign::Center,
+            label_h_custom: 0.0,
+            label_h_custom_pct: true,
+            label_v_custom: 50.0,
+            label_v_custom_pct: true,
+            label_h_pivot: 0.5,
+            label_v_pivot: 0.5,
         }
     }
 }
@@ -203,7 +124,7 @@ impl PlacedWidget {
     pub fn new(id: u32, kind: WidgetKind, x: f32, y: f32) -> Self {
         let (w, h) = kind.default_size();
         let mut props = WidgetProps::default();
-        props.label = kind.name().to_string();
+        props.label = kind.display_name().to_string();
         Self {
             id,
             kind,
@@ -216,73 +137,6 @@ impl PlacedWidget {
     }
 }
 
-/// All palette categories with their widgets.
-pub struct PaletteCategory {
-    pub name: &'static str,
-    pub widgets: &'static [WidgetKind],
-}
-
-pub const PALETTE: &[PaletteCategory] = &[
-    PaletteCategory {
-        name: "Basic",
-        widgets: &[
-            WidgetKind::Label,
-            WidgetKind::Button,
-            WidgetKind::Panel,
-            WidgetKind::Separator,
-            WidgetKind::Spacer,
-            WidgetKind::Placeholder,
-        ],
-    },
-    PaletteCategory {
-        name: "Input",
-        widgets: &[
-            WidgetKind::TextInput,
-            WidgetKind::Checkbox,
-            WidgetKind::Slider,
-            WidgetKind::NumberInput,
-            WidgetKind::ToggleSwitch,
-            WidgetKind::DropDown,
-            WidgetKind::ColorPicker,
-        ],
-    },
-    PaletteCategory {
-        name: "Layout",
-        widgets: &[
-            WidgetKind::ScrollView,
-            WidgetKind::SplitPane,
-            WidgetKind::DockLayout,
-            WidgetKind::AspectRatio,
-        ],
-    },
-    PaletteCategory {
-        name: "Display",
-        widgets: &[WidgetKind::Image, WidgetKind::Svg, WidgetKind::ProgressBar],
-    },
-    PaletteCategory {
-        name: "Navigation",
-        widgets: &[
-            WidgetKind::Tabs,
-            WidgetKind::Accordion,
-            WidgetKind::TreeView,
-            WidgetKind::Modal,
-            WidgetKind::Tooltip,
-        ],
-    },
-    PaletteCategory {
-        name: "Data",
-        widgets: &[
-            WidgetKind::DataTable,
-            WidgetKind::VirtualList,
-            WidgetKind::VirtualGrid,
-        ],
-    },
-    PaletteCategory {
-        name: "Feedback",
-        widgets: &[WidgetKind::Toast],
-    },
-];
-
 /// Top-level scene state: the list of placed widgets and selection/drag info.
 pub struct SceneState {
     pub widgets: Vec<PlacedWidget>,
@@ -290,6 +144,12 @@ pub struct SceneState {
 
     /// Widget being dragged on the canvas (id, offset from widget origin).
     pub drag_canvas: Option<(u32, f32, f32)>,
+
+    /// Widget being resized from one of its 8 handles (id, handle direction).
+    pub resize_widget: Option<(u32, crate::PreviewDrag)>,
+
+    /// Button corner being dragged to adjust its border radius (id, corner index 0=TL 1=TR 2=BR 3=BL).
+    pub radius_drag: Option<(u32, usize)>,
 
     /// Widget kind being dragged from the palette (ghost follows the cursor).
     pub palette_drag: Option<WidgetKind>,
@@ -300,6 +160,9 @@ pub struct SceneState {
     /// Property field currently being edited (field_key) and its string buffer.
     pub editing_field: Option<String>,
     pub edit_buffer: String,
+
+    // ── Input animation / interaction state — managed by TextFieldState ─────
+    pub edit_state: TextFieldState,
 
     /// Prop delta widgets for +/- buttons in the inspector.
     pub prop_x_str: String,
@@ -314,10 +177,13 @@ impl Default for SceneState {
             widgets: Vec::new(),
             next_id: 1,
             drag_canvas: None,
+            resize_widget: None,
+            radius_drag: None,
             palette_drag: None,
             selected_id: None,
             editing_field: None,
             edit_buffer: String::new(),
+            edit_state: TextFieldState::new(),
             prop_x_str: String::new(),
             prop_y_str: String::new(),
             prop_w_str: String::new(),

@@ -237,7 +237,7 @@ pub fn draw(
         dc.gui.rect(gx, gy, 120.0, 22.0, [0.0, 0.478, 0.800, 0.9]);
         dc.gui.draw_text(
             dc.font,
-            kind.name(),
+            kind.display_name(),
             [gx + 6.0, gy + 5.0],
             10.0,
             AppColor::hex("#FFFFFF").to_linear_f32(),
@@ -307,7 +307,7 @@ fn draw_palette(
                     .rect(0.0, cursor_y + 3.0, 3.0, ITEM_H - 6.0, kind.color());
                 dc.gui.draw_text(
                     dc.font,
-                    kind.name(),
+                    kind.display_name(),
                     [ITEM_PAD_X + 8.0, cursor_y + 6.0],
                     11.0,
                     if hovered {

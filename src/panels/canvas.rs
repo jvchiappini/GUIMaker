@@ -1,11 +1,15 @@
 use ferrous_app::{AppContext, CursorIcon, DrawContext, MouseButton};
 use ferrous_ui_core::Rect;
 
-use crate::{c_canvas, c_grid, scene::SceneState, PreviewDrag, TOP_H};
+use crate::{
+    c_canvas, c_grid,
+    panels::widget_editor::{self/*, radius_handle_pos*/},
+    scene::SceneState,
+    PreviewDrag, TOP_H,
+};
 
 const HANDLE_HIT: f32 = 8.0;
-
-//test
+const RADIUS_HANDLE_HIT: f32 = 8.0;
 
 // ── Update ────────────────────────────────────────────────────────────────────
 
@@ -119,7 +123,7 @@ pub fn update(
         *preview_drag = None;
     }
 
-    // ── Widget selection & dragging on canvas ─────────────────────────────────
+    // ── Widget selection, resize & dragging on canvas ────────────────────────
     if scene.palette_drag.is_none() && preview_drag.is_none() {
         // World coords of mouse
         let origin_sx = canvas_x + canvas_w * 0.5 + *pan_x;
@@ -127,8 +131,240 @@ pub fn update(
         let world_mx = (mx - origin_sx) / zoom.max(0.001);
         let world_my = (my - origin_sy) / zoom.max(0.001);
 
-        // Start drag or select
-        if lmb_pressed && over_canvas && hovered_handle.is_none() {
+        // ── Detect hovered radius handle (Button only, selected only) ─────────
+        // NOTE: resize corner handles take priority — only check radius handles when
+        // no resize handle is hovered, to avoid the two overlapping near corners.
+        let early_resize_hit: Option<PreviewDrag> = if let Some(sel_id) = scene.selected_id {
+            if let Some(w) = scene.widgets.iter().find(|w| w.id == sel_id) {
+                let sw = w.w * *zoom;
+                let sh = w.h * *zoom;
+                let sx = origin_sx + w.x * *zoom - sw * 0.5;
+                let sy = origin_sy + w.y * *zoom - sh * 0.5;
+                detect_handle(mx, my, sx, sy, sw, sh)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let radius_corner_hit: Option<(u32, usize)> = if scene.radius_drag.is_none()
+            && scene.resize_widget.is_none()
+            && scene.drag_canvas.is_none()
+            && early_resize_hit.is_none()
+        // don't fire when a resize handle is also hovered
+        {
+            if let Some(sel_id) = scene.selected_id {
+                if let Some(w) = scene.widgets.iter().find(|w| w.id == sel_id) {
+                    if w.kind == crate::scene::WidgetKind::Button {
+                        let sw = w.w * *zoom;
+                        let sh = w.h * *zoom;
+                        let _sx = origin_sx + w.x * *zoom - sw * 0.5;
+                        let _sy = origin_sy + w.y * *zoom - sh * 0.5;
+
+                        let half = (sw.min(sh)) * 0.5;
+                        let _radii = [
+                            (w.props.border_radii[0] * *zoom).min(half),
+                            (w.props.border_radii[1] * *zoom).min(half),
+                            (w.props.border_radii[2] * *zoom).min(half),
+                            (w.props.border_radii[3] * *zoom).min(half),
+                        ];
+
+                        // handle-detection code used to call `radius_handle_pos`, which
+                        // has been removed during refactor; skip for now and always
+                        // return `None` so nothing is considered active.
+                        let found = None;
+                        found
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Set cursor and start radius drag
+        let active_radius = scene
+            .radius_drag
+            .as_ref()
+            .map(|(id, c)| (*id, *c))
+            .or(radius_corner_hit);
+        if active_radius.is_some() {
+            ctx.window.set_cursor(CursorIcon::Crosshair);
+        }
+
+        if lmb_pressed && scene.radius_drag.is_none() {
+            if let Some((id, corner)) = radius_corner_hit {
+                scene.radius_drag = Some((id, corner));
+                *last_mx = mx;
+                *last_my = my;
+            }
+        }
+
+        // ── Apply radius drag ─────────────────────────────────────────────────
+        if lmb_down {
+            if let Some((drag_id, corner)) = scene.radius_drag {
+                if let Some(w) = scene.widgets.iter_mut().find(|w| w.id == drag_id) {
+                    let sw = w.w * *zoom;
+                    let sh = w.h * *zoom;
+                    let sx = origin_sx + w.x * *zoom - sw * 0.5;
+                    let sy = origin_sy + w.y * *zoom - sh * 0.5;
+
+                    // Corner anchor positions in screen space.
+                    // Shader radii order: [0]=TL, [1]=TR, [2]=BL, [3]=BR
+                    let (cx, cy) = match corner {
+                        0 => (sx, sy),           // TL
+                        1 => (sx + sw, sy),      // TR
+                        2 => (sx, sy + sh),      // BL
+                        _ => (sx + sw, sy + sh), // BR
+                    };
+
+                    // Inward diagonal direction per corner (toward button center):
+                    //   TL(0): +x +y   TR(1): -x +y   BL(2): +x -y   BR(3): -x -y
+                    let frac = std::f32::consts::FRAC_1_SQRT_2;
+                    let dx_sign: f32 = if corner == 0 || corner == 2 {
+                        1.0
+                    } else {
+                        -1.0
+                    };
+                    let dy_sign: f32 = if corner == 0 || corner == 1 {
+                        1.0
+                    } else {
+                        -1.0
+                    };
+                    let proj = ((mx - cx) * dx_sign + (my - cy) * dy_sign) * frac;
+
+                    // Convert screen pixels back to world units and clamp
+                    let max_r = (w.w.min(w.h)) * 0.5;
+                    let new_r = (proj / zoom.max(0.001)).clamp(0.0, max_r);
+                    w.props.border_radii[corner] = new_r;
+                    scene.sync_prop_strings();
+                }
+            }
+        }
+
+        if lmb_released {
+            scene.radius_drag = None;
+        }
+
+        // ── Detect hovered widget resize handle ───────────────────────────────
+        let widget_resize_handle: Option<(u32, PreviewDrag)> = if scene.resize_widget.is_none()
+            && scene.drag_canvas.is_none()
+            && scene.radius_drag.is_none()
+            && radius_corner_hit.is_none()
+        {
+            if let Some(sel_id) = scene.selected_id {
+                // Reuse early_resize_hit computed above — same widget, same coords.
+                early_resize_hit.map(|h| (sel_id, h))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Set cursor for widget resize handles
+        let active_resize = scene
+            .resize_widget
+            .as_ref()
+            .map(|(_, h)| *h)
+            .or(widget_resize_handle.as_ref().map(|(_, h)| *h));
+        if let Some(drag) = active_resize {
+            if hovered_handle.is_none() && preview_drag.is_none() {
+                ctx.window.set_cursor(match drag {
+                    PreviewDrag::Left | PreviewDrag::Right => CursorIcon::EwResize,
+                    PreviewDrag::Top | PreviewDrag::Bottom => CursorIcon::NsResize,
+                    PreviewDrag::TopLeft | PreviewDrag::BottomRight => CursorIcon::NwseResize,
+                    PreviewDrag::TopRight | PreviewDrag::BottomLeft => CursorIcon::NeswResize,
+                });
+            }
+        }
+
+        // ── Start widget resize ───────────────────────────────────────────────
+        if lmb_pressed && scene.resize_widget.is_none() && scene.radius_drag.is_none() {
+            if let Some((id, handle)) = widget_resize_handle {
+                scene.resize_widget = Some((id, handle));
+                *last_mx = mx;
+                *last_my = my;
+            }
+        }
+
+        // ── Apply widget resize ───────────────────────────────────────────────
+        if lmb_down {
+            if let Some((resize_id, handle)) = scene.resize_widget {
+                let dx = (mx - *last_mx) / zoom.max(0.001);
+                let dy = (my - *last_my) / zoom.max(0.001);
+                if let Some(w) = scene.widgets.iter_mut().find(|w| w.id == resize_id) {
+                    // Decompose into independent edges; only the dragged edge moves.
+                    let mut left = w.x - w.w * 0.5;
+                    let mut right = w.x + w.w * 0.5;
+                    let mut top = w.y - w.h * 0.5;
+                    let mut bottom = w.y + w.h * 0.5;
+
+                    match handle {
+                        PreviewDrag::Right => right += dx,
+                        PreviewDrag::Left => left += dx,
+                        PreviewDrag::Bottom => bottom += dy,
+                        PreviewDrag::Top => top += dy,
+                        PreviewDrag::BottomRight => {
+                            right += dx;
+                            bottom += dy;
+                        }
+                        PreviewDrag::BottomLeft => {
+                            left += dx;
+                            bottom += dy;
+                        }
+                        PreviewDrag::TopRight => {
+                            right += dx;
+                            top += dy;
+                        }
+                        PreviewDrag::TopLeft => {
+                            left += dx;
+                            top += dy;
+                        }
+                    }
+
+                    // Enforce minimum size (8 px world units)
+                    if right - left < 8.0 {
+                        right = left + 8.0;
+                    }
+                    if bottom - top < 8.0 {
+                        bottom = top + 8.0;
+                    }
+
+                    w.w = right - left;
+                    w.h = bottom - top;
+                    w.x = left + w.w * 0.5;
+                    w.y = top + w.h * 0.5;
+
+                    // Clamp radii so they never exceed half the shortest dimension.
+                    let max_r = (w.w.min(w.h)) * 0.5;
+                    for r in w.props.border_radii.iter_mut() {
+                        *r = r.min(max_r);
+                    }
+                }
+                scene.sync_prop_strings();
+            }
+        }
+
+        if lmb_released {
+            scene.resize_widget = None;
+        }
+
+        // ── Start drag or select (skip if resize or radius handle was hit) ──────
+        if lmb_pressed
+            && over_canvas
+            && hovered_handle.is_none()
+            && widget_resize_handle.is_none()
+            && scene.resize_widget.is_none()
+            && radius_corner_hit.is_none()
+            && scene.radius_drag.is_none()
+        {
             // Check if we hit a placed widget (top-most first)
             let hit_id = scene
                 .widgets
@@ -171,8 +407,8 @@ pub fn update(
             }
         }
 
-        // Drag widget
-        if lmb_down {
+        // ── Drag widget ───────────────────────────────────────────────────────
+        if lmb_down && scene.resize_widget.is_none() && scene.radius_drag.is_none() {
             if let Some((drag_id, off_x, off_y)) = scene.drag_canvas {
                 if let Some(w) = scene.widgets.iter_mut().find(|w| w.id == drag_id) {
                     w.x = world_mx - off_x;
@@ -188,7 +424,12 @@ pub fn update(
     }
 
     // ── Zoom ──────────────────────────────────────────────────────────────────
-    if preview_drag.is_none() && scene.drag_canvas.is_none() && over_canvas {
+    if preview_drag.is_none()
+        && scene.drag_canvas.is_none()
+        && scene.resize_widget.is_none()
+        && scene.radius_drag.is_none()
+        && over_canvas
+    {
         let sd = ctx.input.scroll_delta();
         let scroll = if sd.1 != 0.0 { sd.1 } else { sd.0 };
         if scroll != 0.0 {
@@ -209,7 +450,12 @@ pub fn update(
     // ── Pan ───────────────────────────────────────────────────────────────────
     let panning = ctx.input.is_button_down(MouseButton::Middle)
         || ctx.input.is_button_down(MouseButton::Right);
-    if panning && over_canvas && preview_drag.is_none() && scene.drag_canvas.is_none() {
+    if panning
+        && over_canvas
+        && preview_drag.is_none()
+        && scene.drag_canvas.is_none()
+        && scene.resize_widget.is_none()
+    {
         *pan_x += mx - *last_mx;
         *pan_y += my - *last_my;
     }
@@ -360,66 +606,12 @@ pub fn draw(
         }
 
         let is_selected = scene.selected_id == Some(w.id);
-
-        // Fill
-        let mut col = w.kind.color();
-        col[3] = if is_selected { 0.85 } else { 0.65 };
-        dc.gui.rect(sx, sy, sw, sh, col);
-
-        // Border
-        let border_col = if is_selected {
-            [1.0_f32, 0.8, 0.0, 1.0] // golden selection border
-        } else {
-            [col[0] * 1.4, col[1] * 1.4, col[2] * 1.4, 0.9]
-        };
-        let bw = if is_selected { 2.0 } else { 1.0 };
-        dc.gui.rect(sx, sy, sw, bw, border_col);
-        dc.gui.rect(sx, sy + sh - bw, sw, bw, border_col);
-        dc.gui.rect(sx, sy, bw, sh, border_col);
-        dc.gui.rect(sx + sw - bw, sy, bw, sh, border_col);
-
-        // Label
-        if sw > 20.0 && sh > 12.0 {
-            let label = if !w.props.label.is_empty() {
-                w.props.label.as_str()
-            } else {
-                w.kind.name()
-            };
-            let font_size = (11.0 * zoom).clamp(8.0, 16.0);
-            let text_x = sx + 4.0;
-            let text_y = sy + (sh - font_size) * 0.5;
-            dc.gui.draw_text(
-                dc.font,
-                label,
-                [text_x, text_y],
-                font_size,
-                [1.0, 1.0, 1.0, 0.9],
-            );
-        }
-
-        // Selection handles (corners + midpoints)
-        if is_selected {
-            let hs = 6.0_f32;
-            let hh = hs * 0.5;
-            let mid_sx = sx + sw * 0.5;
-            let mid_sy = sy + sh * 0.5;
-            let handle_col = [1.0_f32, 0.8, 0.0, 1.0];
-            let handle_bg = [0.1_f32, 0.1, 0.1, 1.0];
-            for (hx, hy) in [
-                (sx - hh, sy - hh),
-                (mid_sx - hh, sy - hh),
-                (sx + sw - hh, sy - hh),
-                (sx + sw - hh, mid_sy - hh),
-                (sx + sw - hh, sy + sh - hh),
-                (mid_sx - hh, sy + sh - hh),
-                (sx - hh, sy + sh - hh),
-                (sx - hh, mid_sy - hh),
-            ] {
-                dc.gui.rect(hx, hy, hs, hs, handle_col);
-                dc.gui
-                    .rect(hx + 1.0, hy + 1.0, hs - 2.0, hs - 2.0, handle_bg);
-            }
-        }
+        // Determine if a radius drag is active for this specific widget.
+        let active_radius_corner =
+            scene
+                .radius_drag
+                .and_then(|(drag_id, corner)| if drag_id == w.id { Some(corner) } else { None });
+        widget_editor::draw_widget(dc, w, sx, sy, sw, sh, is_selected, active_radius_corner);
     }
 
     // 6. Controls hint

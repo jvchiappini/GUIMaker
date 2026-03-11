@@ -281,7 +281,7 @@ impl FerrousApp for GUIMakerApp {
         panels::left_panel::draw(dc, self.left_w, &self.palette_state, &self.scene);
 
         // 5. Right panel content: properties inspector
-        panels::right_panel::draw(dc, self.right_w, &self.scene);
+        panels::right_panel::draw(dc, self.right_w, &mut self.scene);
 
         // 6. Top bar (always on top)
         panels::top_bar::draw(
