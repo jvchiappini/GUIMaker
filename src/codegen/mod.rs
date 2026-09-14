@@ -288,7 +288,7 @@ mod codegen {
         main_fn.push_str(&format!("    App::new({}::default())\n", struct_name));
         main_fn.push_str(&format!("        .with_title(\"{}\")\n", project_name));
         main_fn.push_str("        .with_size(1280, 720)\n");
-        main_fn.push_str("        .with_mode(AppMode::Desktop2D)\n");
+        main_fn.push_str("        .with_mode(AppMode::Flat2D)\n");
         main_fn.push_str("        .with_background_color(Color::rgb(0.10, 0.10, 0.12))\n");
         main_fn.push_str("        .with_font(\"assets/fonts/Roboto-Regular.ttf\")\n");
         main_fn.push_str("        .run();\n");

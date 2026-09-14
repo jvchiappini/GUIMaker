@@ -5,7 +5,7 @@ fn main() {
     App::new(GUIMakerApp::default())
         .with_title("GUIMaker")
         .with_size(1280, 720)
-        .with_mode(AppMode::Desktop)
+        .with_mode(AppMode::Flat2D)
         .with_decorations(false)
         .with_resizable(true)
         .with_vsync(false)

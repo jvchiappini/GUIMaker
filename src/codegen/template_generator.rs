@@ -281,7 +281,7 @@ impl TemplateCodeGenerator {
         main_fn.push_str("    App::new(MyApp::default())\n");
         main_fn.push_str("        .with_title(\"My App\")\n");
         main_fn.push_str("        .with_size(1280, 720)\n");
-        main_fn.push_str("        .with_mode(AppMode::Desktop2D)\n");
+        main_fn.push_str("        .with_mode(AppMode::Flat2D)\n");
         main_fn.push_str("        .with_background_color(Color::rgb(0.10, 0.10, 0.12))\n");
         main_fn.push_str("        .with_font(\"assets/fonts/Roboto-Regular.ttf\")\n");
         main_fn.push_str("        .run();\n");
