@@ -1,0 +1,931 @@
+warning: variable does not need to be mutable
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_assets/src/texture.rs:200:13
+    |
+200 |         let mut opt = usvg::Options::default();
+    |             ----^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: `ferrous_assets` (lib) generated 1 warning (run `cargo fix --lib -p ferrous_assets` to apply 1 suggestion)
+warning: variable `needs_redraw` is assigned to, but never used
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_ui_core/src/widgets/toast.rs:256:13
+    |
+256 |         let mut needs_redraw = false;
+    |             ^^^^^^^^^^^^^^^^
+    |
+    = note: consider using `_needs_redraw` instead
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `needs_redraw` is never read
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_ui_core/src/widgets/toast.rs:268:13
+    |
+268 |             needs_redraw = true;
+    |             ^^^^^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `needs_redraw` is never read
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_ui_core/src/widgets/toast.rs:261:13
+    |
+261 |             needs_redraw = true;
+    |             ^^^^^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: field `tab_index` is never read
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_ui_core/src/widgets/tabs.rs:39:9
+   |
+36 | struct TabButton {
+   |        --------- field in this struct
+...
+39 |     pub tab_index: usize,
+   |         ^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `AccordionHeader` is never constructed
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_ui_core/src/widgets/accordion.rs:190:8
+    |
+190 | struct AccordionHeader {
+    |        ^^^^^^^^^^^^^^^
+
+warning: associated function `new` is never used
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_ui_core/src/widgets/accordion.rs:197:8
+    |
+196 | impl AccordionHeader {
+    | -------------------- associated function in this implementation
+197 |     fn new(title: &str, is_expanded: bool, custom_color: Option<Color>) -> S...
+    |        ^^^
+
+warning: field `close_btn_id` is never read
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_ui_core/src/widgets/modal.rs:80:5
+   |
+62 | pub struct Modal<App> {
+   |            ----- field in this struct
+...
+80 |     close_btn_id: Option<NodeId>,
+   |     ^^^^^^^^^^^^
+
+warning: field `user_data` is never read
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_ui_core/src/widgets/tree_view.rs:118:5
+    |
+107 | struct FlatRow {
+    |        ------- field in this struct
+...
+118 |     user_data: u64,
+    |     ^^^^^^^^^
+    |
+    = note: `FlatRow` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: methods `col_x` and `resize_handle_x` are never used
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_ui_core/src/widgets/data_table.rs:263:8
+    |
+175 | impl<App> DataTable<App> {
+    | ------------------------ methods in this implementation
+...
+263 |     fn col_x(&self, col_idx: usize) -> f32 {
+    |        ^^^^^
+...
+268 |     fn resize_handle_x(&self, col_idx: usize) -> f32 {
+    |        ^^^^^^^^^^^^^^^
+
+warning: `ferrous_ui_core` (lib) generated 9 warnings
+warning: use of deprecated method `ferrous_ecs::world::World::query2`: use Query::<(&A, &B)>::new(world).iter()
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_core/src/scene/systems/camera.rs:132:14
+    |
+132 |             .query2::<OrbitCamera, Camera3D>()
+    |              ^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: `ferrous_core` (lib) generated 1 warning
+    Checking ferrous_renderer v0.1.0 (/opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer)
+error[E0583]: file not found for module `camera`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:12:1
+   |
+12 | pub mod camera;
+   | ^^^^^^^^^^^^^^^
+   |
+   = help: to create the module `camera`, create file "/opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core/camera.rs" or "/opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core/camera/mod.rs"
+   = note: if there is a `mod camera` elsewhere in the crate already, import it with `use crate::...` instead
+
+error[E0583]: file not found for module `pipeline`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:13:1
+   |
+13 | pub mod pipeline;
+   | ^^^^^^^^^^^^^^^^^
+   |
+   = help: to create the module `pipeline`, create file "/opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core/pipeline.rs" or "/opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core/pipeline/mod.rs"
+   = note: if there is a `mod pipeline` elsewhere in the crate already, import it with `use crate::...` instead
+
+error[E0583]: file not found for module `camera_system`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:14:1
+   |
+14 | pub mod camera_system;
+   | ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: to create the module `camera_system`, create file "/opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core/camera_system.rs" or "/opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core/camera_system/mod.rs"
+   = note: if there is a `mod camera_system` elsewhere in the crate already, import it with `use crate::...` instead
+
+error[E0583]: file not found for module `frame_builder`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:15:1
+   |
+15 | pub mod frame_builder;
+   | ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: to create the module `frame_builder`, create file "/opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core/frame_builder.rs" or "/opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core/frame_builder/mod.rs"
+   = note: if there is a `mod frame_builder` elsewhere in the crate already, import it with `use crate::...` instead
+
+error[E0583]: file not found for module `gizmo_system`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:16:1
+   |
+16 | pub mod gizmo_system;
+   | ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: to create the module `gizmo_system`, create file "/opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core/gizmo_system.rs" or "/opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core/gizmo_system/mod.rs"
+   = note: if there is a `mod gizmo_system` elsewhere in the crate already, import it with `use crate::...` instead
+
+error[E0583]: file not found for module `render_stats`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:17:1
+   |
+17 | pub mod render_stats;
+   | ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: to create the module `render_stats`, create file "/opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core/render_stats.rs" or "/opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core/render_stats/mod.rs"
+   = note: if there is a `mod render_stats` elsewhere in the crate already, import it with `use crate::...` instead
+
+error[E0432]: unresolved import `ferrous_core::scene::SceneData`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:11:47
+   |
+11 | use ferrous_core::scene::{MaterialDescriptor, SceneData, World};
+   |                                               ^^^^^^^^^ no `SceneData` in `scene`
+
+error[E0432]: unresolved import `crate::camera`
+ --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:6:12
+  |
+6 | use crate::camera::Camera;
+  |            ^^^^^^
+  |            |
+  |            unresolved import
+  |            help: a similar path exists: `renderer_core::camera`
+
+error[E0432]: unresolved import `crate::camera_system`
+ --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:7:12
+  |
+7 | use crate::camera_system::CameraSystem;
+  |            ^^^^^^^^^^^^^
+  |            |
+  |            unresolved import
+  |            help: a similar path exists: `renderer_core::camera_system`
+
+error[E0432]: unresolved import `crate::geometry`
+ --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:8:12
+  |
+8 | use crate::geometry::Mesh;
+  |            ^^^^^^^^ could not find `geometry` in the crate root
+
+error[E0432]: unresolved import `crate::gizmo_system`
+ --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:9:12
+  |
+9 | use crate::gizmo_system::GizmoSystem;
+  |            ^^^^^^^^^^^^
+  |            |
+  |            unresolved import
+  |            help: a similar path exists: `renderer_core::gizmo_system`
+
+error[E0433]: failed to resolve: could not find `graph` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:11:12
+   |
+11 | use crate::graph::frame_packet::Viewport;
+   |            ^^^^^ could not find `graph` in the crate root
+
+error[E0432]: unresolved import `crate::graph`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:10:12
+   |
+10 | use crate::graph::RenderPass;
+   |            ^^^^^ could not find `graph` in the crate root
+
+error[E0432]: unresolved import `crate::materials`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:12:12
+   |
+12 | use crate::materials::MaterialRegistry;
+   |            ^^^^^^^^^ could not find `materials` in the crate root
+
+error[E0432]: unresolved import `crate::pipeline`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:13:12
+   |
+13 | use crate::pipeline::PipelineLayouts;
+   |            ^^^^^^^^
+   |            |
+   |            unresolved import
+   |            help: a similar path exists: `renderer_core::pipeline`
+
+error[E0432]: unresolved import `crate::render_target`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:14:12
+   |
+14 | use crate::render_target::RenderTarget;
+   |            ^^^^^^^^^^^^^ could not find `render_target` in the crate root
+
+error[E0432]: unresolved import `crate::resources`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:15:12
+   |
+15 | use crate::resources::InstanceBuffer;
+   |            ^^^^^^^^^ could not find `resources` in the crate root
+
+error[E0433]: failed to resolve: could not find `resources` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:20:12
+   |
+20 | use crate::resources::texture_registry::TextureHandle;
+   |            ^^^^^^^^^ could not find `resources` in the crate root
+
+error[E0433]: failed to resolve: unresolved import
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:21:12
+   |
+21 | use crate::camera::controller::OrbitState;
+   |            ^^^^^^
+   |            |
+   |            unresolved import
+   |            help: a similar path exists: `renderer_core::camera`
+
+error[E0432]: unresolved import `crate::scene`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:16:12
+   |
+16 | use crate::scene::{SceneData, GizmoDraw};
+   |            ^^^^^
+   |            |
+   |            unresolved import
+   |            help: a similar path exists: `ferrous_core::scene`
+
+error[E0433]: failed to resolve: could not find `graph` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:24:16
+   |
+24 | pub use crate::graph::frame_packet::Viewport;
+   |                ^^^^^ could not find `graph` in the crate root
+
+error[E0432]: unresolved import `crate::context`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:22:12
+   |
+22 | use crate::context::EngineContext;
+   |            ^^^^^^^
+   |            |
+   |            unresolved import
+   |            help: a similar path exists: `ferrous_core::context`
+
+error[E0432]: unresolved import `crate::graph`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:25:16
+   |
+25 | pub use crate::graph::RenderPass;
+   |                ^^^^^ could not find `graph` in the crate root
+
+error[E0432]: unresolved import `crate::render_target`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:28:16
+   |
+28 | pub use crate::render_target::RenderTarget;
+   |                ^^^^^^^^^^^^^ could not find `render_target` in the crate root
+
+error[E0432]: unresolved import `crate::resources`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:29:16
+   |
+29 | pub use crate::resources::InstanceBuffer;
+   |                ^^^^^^^^^ could not find `resources` in the crate root
+
+error[E0432]: unresolved import `crate::passes`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:31:16
+   |
+31 | pub use crate::passes::{
+   |                ^^^^^^ could not find `passes` in the crate root
+
+error[E0432]: unresolved import `crate::passes`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:37:16
+   |
+37 | pub use crate::passes::UiPass;
+   |                ^^^^^^ could not find `passes` in the crate root
+
+error[E0432]: unresolved import `crate::materials`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:43:12
+   |
+43 | use crate::materials::MaterialRegistry;
+   |            ^^^^^^^^^ could not find `materials` in the crate root
+
+error[E0432]: unresolved import `crate::resources`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:45:12
+   |
+45 | use crate::resources::SsaoResources;
+   |            ^^^^^^^^^ could not find `resources` in the crate root
+
+error[E0433]: failed to resolve: could not find `resources` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_resource.rs:14:12
+   |
+14 | use crate::resources::material::{
+   |            ^^^^^^^^^ could not find `resources` in the crate root
+
+error[E0432]: unresolved import `crate::pipeline`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_resource.rs:13:12
+   |
+13 | use crate::pipeline::PipelineLayouts;
+   |            ^^^^^^^^
+   |            |
+   |            unresolved import
+   |            help: a similar path exists: `renderer_core::pipeline`
+
+error[E0432]: unresolved import `crate::resources`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_resource.rs:18:12
+   |
+18 | use crate::resources::{InstanceBuffer, Material, TextureHandle, TextureRegist...
+   |            ^^^^^^^^^ could not find `resources` in the crate root
+
+error[E0432]: unresolved import `crate::geometry`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_resource.rs:19:12
+   |
+19 | use crate::geometry::Mesh;
+   |            ^^^^^^^^ could not find `geometry` in the crate root
+
+error[E0432]: unresolved import `crate::camera`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:13:12
+   |
+13 | use crate::camera::Camera;
+   |            ^^^^^^
+   |            |
+   |            unresolved import
+   |            help: a similar path exists: `renderer_core::camera`
+
+error[E0432]: unresolved import `crate::frame_builder`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:14:12
+   |
+14 | use crate::frame_builder::FrameBuilder;
+   |            ^^^^^^^^^^^^^
+   |            |
+   |            unresolved import
+   |            help: a similar path exists: `renderer_core::frame_builder`
+
+error[E0433]: failed to resolve: could not find `graph` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:16:12
+   |
+16 | use crate::graph::frame_packet::CameraPacket;
+   |            ^^^^^ could not find `graph` in the crate root
+
+error[E0432]: unresolved import `crate::gizmo_system`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:15:12
+   |
+15 | use crate::gizmo_system::GizmoSystem;
+   |            ^^^^^^^^^^^^
+   |            |
+   |            unresolved import
+   |            help: a similar path exists: `renderer_core::gizmo_system`
+
+error[E0432]: unresolved import `crate::graph`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:17:12
+   |
+17 | use crate::graph::RenderPass;
+   |            ^^^^^ could not find `graph` in the crate root
+
+error[E0432]: unresolved import `crate::pipeline`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:18:12
+   |
+18 | use crate::pipeline::PipelineLayouts;
+   |            ^^^^^^^^
+   |            |
+   |            unresolved import
+   |            help: a similar path exists: `renderer_core::pipeline`
+
+error[E0432]: unresolved import `crate::render_target`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:19:12
+   |
+19 | use crate::render_target::RenderTarget;
+   |            ^^^^^^^^^^^^^ could not find `render_target` in the crate root
+
+error[E0432]: unresolved import `crate::render_stats`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:20:12
+   |
+20 | use crate::render_stats::RenderStats;
+   |            ^^^^^^^^^^^^
+   |            |
+   |            unresolved import
+   |            help: a similar path exists: `ferrous_core::render_stats`
+
+error[E0432]: unresolved import `crate::resources`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:21:12
+   |
+21 | use crate::resources::InstanceBuffer;
+   |            ^^^^^^^^^ could not find `resources` in the crate root
+
+error[E0432]: unresolved import `crate::scene`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:22:12
+   |
+22 | use crate::scene::{Frustum, GizmoDraw};
+   |            ^^^^^
+   |            |
+   |            unresolved import
+   |            help: a similar path exists: `ferrous_core::scene`
+
+error[E0432]: unresolved import `crate::resources`
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:767:20
+    |
+767 |         use crate::resources::DirectionalLightUniform;
+    |                    ^^^^^^^^^ could not find `resources` in the crate root
+
+error[E0432]: unresolved import `crate::CameraSystem`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:23:13
+   |
+23 | use crate::{CameraSystem, RenderStyle, RendererMode, Viewport};
+   |             ^^^^^^^^^^^^ no `CameraSystem` in the root
+   |
+   = help: consider importing this unresolved item through its public re-export instead:
+           crate::renderer_core::CameraSystem
+
+error[E0432]: unresolved import `renderer_resource::SsaoResources`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/lib.rs:26:47
+   |
+26 | pub use renderer_resource::{MaterialRegistry, SsaoResources};
+   |                                               ^^^^^^^^^^^^^ no `SsaoResources` in `renderer_resource`
+
+error[E0432]: unresolved imports `renderer_core::Mesh`, `renderer_core::Vertex`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/lib.rs:40:25
+   |
+40 | pub use renderer_core::{Mesh, Vertex};
+   |                         ^^^^  ^^^^^^ no `Vertex` in `renderer_core`
+   |                         |
+   |                         no `Mesh` in `renderer_core`
+   |
+   = help: consider importing this variant instead:
+           ferrous_core::ElementKind::Mesh
+   = help: consider importing this variant instead:
+           wgpu::VertexStepMode::Vertex
+
+error[E0432]: unresolved imports `renderer_core::Aabb`, `renderer_core::Frustum`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/lib.rs:43:25
+   |
+43 | pub use renderer_core::{Aabb, Frustum};
+   |                         ^^^^  ^^^^^^^ no `Frustum` in `renderer_core`
+   |                         |
+   |                         no `Aabb` in `renderer_core`
+
+error[E0432]: unresolved import `renderer_core::TextureHandle`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/lib.rs:51:9
+   |
+51 | pub use renderer_core::TextureHandle;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no `TextureHandle` in `renderer_core`
+
+error[E0432]: unresolved import `renderer_core::TEXTURE_BLACK`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/lib.rs:52:9
+   |
+52 | pub use renderer_core::TEXTURE_BLACK;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no `TEXTURE_BLACK` in `renderer_core`
+
+error[E0432]: unresolved import `renderer_core::TEXTURE_NORMAL`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/lib.rs:53:9
+   |
+53 | pub use renderer_core::TEXTURE_NORMAL;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no `TEXTURE_NORMAL` in `renderer_core`
+
+error[E0432]: unresolved import `renderer_core::TEXTURE_WHITE`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/lib.rs:54:9
+   |
+54 | pub use renderer_core::TEXTURE_WHITE;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no `TEXTURE_WHITE` in `renderer_core`
+
+error[E0432]: unresolved import `crate::Viewport`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:23:54
+   |
+23 | use crate::{CameraSystem, RenderStyle, RendererMode, Viewport};
+   |                                                      ^^^^^^^^ no `Viewport` in the root
+   |
+   = help: consider importing one of these items instead:
+           crate::renderer_core::Viewport
+           ferrous_core::Viewport
+           ferrous_render_graph::Viewport
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:54:29
+   |
+54 |     world_pass: &mut crate::passes::WorldPass,
+   |                             ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:75:29
+   |
+75 |     world_pass: &mut crate::passes::WorldPass,
+   |                             ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:133:29
+    |
+133 |     world_pass: &mut crate::passes::WorldPass,
+    |                             ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:164:29
+    |
+164 |     world_pass: &mut crate::passes::WorldPass,
+    |                             ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:223:29
+    |
+223 |     world_pass: &mut crate::passes::WorldPass,
+    |                             ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `resources` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:225:36
+    |
+225 |     current_dir_light: &mut crate::resources::DirectionalLightUniform,
+    |                                    ^^^^^^^^^ could not find `resources` in the crate root
+
+error[E0433]: failed to resolve: could not find `resources` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:233:30
+    |
+233 | ...= crate::resources::light::DirectionalLightUniform::default();
+    |             ^^^^^^^^^ could not find `resources` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:248:29
+    |
+248 |     world_pass: &mut crate::passes::WorldPass,
+    |                             ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `resources` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:251:22
+    |
+251 |     lights: &[crate::resources::PointLightUniform],
+    |                      ^^^^^^^^^ could not find `resources` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:294:34
+    |
+294 |     cel_pass: &mut Option<crate::passes::CelShadedPass>,
+    |                                  ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:295:38
+    |
+295 |     outline_pass: &mut Option<crate::passes::OutlinePass>,
+    |                                      ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:296:35
+    |
+296 |     flat_pass: &mut Option<crate::passes::FlatShadedPass>,
+    |                                   ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `render_target` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:305:29
+    |
+305 |     let hdr_format = crate::render_target::HdrTexture::FORMAT;
+    |                             ^^^^^^^^^^^^^ could not find `render_target` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:319:33
+    |
+319 |             let mut cp = crate::passes::CelShadedPass::new(
+    |                                 ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:333:37
+    |
+333 |                 let mut op = crate::passes::OutlinePass::new(
+    |                                     ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:352:33
+    |
+352 |             let mut fp = crate::passes::FlatShadedPass::new(
+    |                                 ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:380:29
+    |
+380 |     world_pass: &mut crate::passes::WorldPass,
+    |                             ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:381:50
+    |
+381 |     #[cfg(feature = "gui")] ui_pass: &mut crate::passes::UiPass,
+    |                                                  ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:457:29
+    |
+457 |     world_pass: &mut crate::passes::WorldPass,
+    |                             ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `resources` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:458:36
+    |
+458 |     current_dir_light: &mut crate::resources::DirectionalLightUniform,
+    |                                    ^^^^^^^^^ could not find `resources` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:513:29
+    |
+513 |     world_pass: &mut crate::passes::WorldPass,
+    |                             ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:514:26
+    |
+514 |     prepass: &mut crate::passes::PrePass,
+    |                          ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:515:28
+    |
+515 |     ssao_pass: &mut crate::passes::SsaoPass,
+    |                            ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:516:33
+    |
+516 |     ssao_blur_pass: &mut crate::passes::SsaoBlurPass,
+    |                                 ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:517:36
+    |
+517 |     post_process_pass: &mut crate::passes::PostProcessPass,
+    |                                    ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:518:50
+    |
+518 |     #[cfg(feature = "gui")] ui_pass: &mut crate::passes::UiPass,
+    |                                                  ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:595:48
+    |
+595 | ...&mut crate::passes::WorldPass, color: wgpu::Color) {
+    |                ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:602:26
+    |
+602 |     ui_pass: &mut crate::passes::UiPass,
+    |                          ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `resources` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:169:31
+    |
+169 |     current_dir_light: crate::resources::DirectionalLightUniform,
+    |                               ^^^^^^^^^ could not find `resources` in the crate root
+
+error[E0433]: failed to resolve: could not find `render_target` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:201:33
+    |
+201 |         let hdr_format = crate::render_target::HdrTexture::FORMAT;
+    |                                 ^^^^^^^^^^^^^ could not find `render_target` in the crate root
+
+error[E0433]: failed to resolve: could not find `resources` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:395:39
+    |
+395 | ...: crate::resources::DirectionalLightUniform::default(),
+    |             ^^^^^^^^^ could not find `resources` in the crate root
+
+error[E0433]: failed to resolve: could not find `render_target` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:495:33
+    |
+495 |         let hdr_format = crate::render_target::HdrTexture::FORMAT;
+    |                                 ^^^^^^^^^^^^^ could not find `render_target` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:64:28
+   |
+64 |     pub world_pass: crate::passes::WorldPass,
+   |                            ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:65:35
+   |
+65 |     pub post_process_pass: crate::passes::PostProcessPass,
+   |                                   ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:67:25
+   |
+67 |     pub ui_pass: crate::passes::UiPass,
+   |                         ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:70:33
+   |
+70 |     pub cel_pass: Option<crate::passes::CelShadedPass>,
+   |                                 ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:71:37
+   |
+71 |     pub outline_pass: Option<crate::passes::OutlinePass>,
+   |                                     ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:72:34
+   |
+72 |     pub flat_pass: Option<crate::passes::FlatShadedPass>,
+   |                                  ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:75:25
+   |
+75 |     pub prepass: crate::passes::PrePass,
+   |                         ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:76:27
+   |
+76 |     pub ssao_pass: crate::passes::SsaoPass,
+   |                           ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:77:32
+   |
+77 |     pub ssao_blur_pass: crate::passes::SsaoBlurPass,
+   |                                ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `materials` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:90:35
+   |
+90 |     pub material_registry: crate::materials::MaterialRegistry,
+   |                                   ^^^^^^^^^ could not find `materials` in the crate root
+
+error[E0433]: failed to resolve: could not find `resources` in the crate root
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:93:35
+   |
+93 |     pub current_dir_light: crate::resources::DirectionalLightUniform,
+   |                                   ^^^^^^^^^ could not find `resources` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:279:38
+    |
+279 |                 packet.insert(crate::passes::CelFrameData {
+    |                                      ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:285:42
+    |
+285 |                     packet.insert(crate::passes::OutlineFrameData {
+    |                                          ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `passes` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:320:38
+    |
+320 |                 packet.insert(crate::passes::FlatFrameData {
+    |                                      ^^^^^^ could not find `passes` in the crate root
+
+error[E0433]: failed to resolve: could not find `resources` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:663:50
+    |
+663 | ...c<crate::resources::PointLightUniform> = Vec::new();
+    |             ^^^^^^^^^ could not find `resources` in the crate root
+
+error[E0433]: failed to resolve: could not find `resources` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:667:50
+    |
+667 | ...h(crate::resources::PointLightUniform::new(
+    |             ^^^^^^^^^ could not find `resources` in the crate root
+
+error[E0433]: failed to resolve: unresolved import
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:107:32
+    |
+107 |     frame_builder: &mut crate::frame_builder::FrameBuilder,
+    |                                ^^^^^^^^^^^^^ unresolved import
+    |
+help: a similar path exists
+    |
+107 |     frame_builder: &mut crate::renderer_core::frame_builder::FrameBuilder,
+    |                                +++++++++++++++
+help: consider importing this module
+    |
+  1 + use crate::renderer_core::frame_builder;
+    |
+help: if you import `frame_builder`, refer to it directly
+    |
+107 -     frame_builder: &mut crate::frame_builder::FrameBuilder,
+107 +     frame_builder: &mut frame_builder::FrameBuilder,
+    |
+
+error[E0433]: failed to resolve: unresolved import
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:119:32
+    |
+119 |     frame_builder: &mut crate::frame_builder::FrameBuilder,
+    |                                ^^^^^^^^^^^^^ unresolved import
+    |
+help: a similar path exists
+    |
+119 |     frame_builder: &mut crate::renderer_core::frame_builder::FrameBuilder,
+    |                                +++++++++++++++
+help: consider importing this module
+    |
+  1 + use crate::renderer_core::frame_builder;
+    |
+help: if you import `frame_builder`, refer to it directly
+    |
+119 -     frame_builder: &mut crate::frame_builder::FrameBuilder,
+119 +     frame_builder: &mut frame_builder::FrameBuilder,
+    |
+
+error[E0433]: failed to resolve: unresolved import
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:459:32
+    |
+459 |     frame_builder: &mut crate::frame_builder::FrameBuilder,
+    |                                ^^^^^^^^^^^^^ unresolved import
+    |
+help: a similar path exists
+    |
+459 |     frame_builder: &mut crate::renderer_core::frame_builder::FrameBuilder,
+    |                                +++++++++++++++
+help: consider importing this module
+    |
+  1 + use crate::renderer_core::frame_builder;
+    |
+help: if you import `frame_builder`, refer to it directly
+    |
+459 -     frame_builder: &mut crate::frame_builder::FrameBuilder,
+459 +     frame_builder: &mut frame_builder::FrameBuilder,
+    |
+
+error[E0423]: expected value, found struct `wgpu::Queue`
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:474:14
+    |
+474 |             &wgpu::Queue, // This would need to be passed in
+    |              ^^^^^^^^^^^
+    |
+   ::: /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wgpu-23.0.1/src/api/queue.rs:18:1
+    |
+ 18 | pub struct Queue {
+    | ---------------- `wgpu::Queue` defined here
+
+error[E0425]: cannot find type `EngineContext` in this scope
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:84:18
+   |
+84 |     pub context: EngineContext,
+   |                  ^^^^^^^^^^^^^ not found in this scope
+   |
+help: consider importing one of these structs
+   |
+ 1 + use ferrous_core::EngineContext;
+   |
+ 1 + use ferrous_gpu::EngineContext;
+   |
+
+error[E0425]: cannot find type `EngineContext` in this scope
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:187:18
+    |
+187 |         context: EngineContext,
+    |                  ^^^^^^^^^^^^^ not found in this scope
+    |
+help: consider importing one of these structs
+    |
+  1 + use ferrous_core::EngineContext;
+    |
+  1 + use ferrous_gpu::EngineContext;
+    |
+
+error[E0433]: failed to resolve: could not find `graph` in the crate root
+   --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:524:36
+    |
+524 |         let camera_packet = crate::graph::frame_packet::CameraPacket {
+    |                                    ^^^^^ could not find `graph` in the crate root
+    |
+help: consider importing this module
+    |
+  6 + use ferrous_render_graph::frame_packet;
+    |
+help: if you import `frame_packet`, refer to it directly
+    |
+524 -         let camera_packet = crate::graph::frame_packet::CameraPacket {
+524 +         let camera_packet = frame_packet::CameraPacket {
+    |
+
+error[E0603]: unresolved item import `InstancingPipeline` is private
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/lib.rs:34:62
+   |
+34 |     RenderTarget, InstanceBuffer, FrameBuilder, GizmoSystem, InstancingPipeline,
+   |                                                              ^^^^^^^^^^^^^^^^^^ private unresolved item import
+   |
+note: the unresolved item import `InstancingPipeline` is defined here
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_core.rs:47:5
+   |
+47 | use pipeline::InstancingPipeline;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `AlphaMode` and `MATERIAL_DEFAULT`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_api.rs:18:27
+   |
+18 | use ferrous_core::scene::{AlphaMode, MATERIAL_DEFAULT};
+   |                           ^^^^^^^^^  ^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ferrous_core::EngineContext`
+  --> /opt/softwaremaker/workspaces/96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_renderer/src/renderer_passes.rs:25:5
+   |
+25 | use ferrous_core::EngineContext;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Some errors have detailed explanations: E0423, E0425, E0432, E0433, E0583, E0603.
+For more information about an error, try `rustc --explain E0423`.
+warning: `ferrous_renderer` (lib) generated 2 warnings
+error: could not compile `ferrous_renderer` (lib) due to 109 previous errors; 2 warnings emitted

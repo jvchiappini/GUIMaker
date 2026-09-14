@@ -1,10 +1,11 @@
-use ferrous_app::{AppContext, CursorIcon, DrawContext, MouseButton};
+use ferrous_engine::{AppContext, CursorIcon, DrawContext, MouseButton};
 use ferrous_ui_core::Rect;
 
 use crate::{
     c_canvas, c_grid,
     panels::{widget_editor, widgets::button::radius_handle_pos},
     scene::SceneState,
+    theme::Theme,
     PreviewDrag, TOP_H,
 };
 
@@ -27,6 +28,7 @@ pub fn update(
     preview_h: &mut f32,
     preview_drag: &mut Option<PreviewDrag>,
     scene: &mut SceneState,
+    color_picker_hovered: bool,
 ) {
     let (win_w, win_h) = ctx.window_size;
     let ww = win_w as f32;
@@ -39,7 +41,8 @@ pub fn update(
     let canvas_h = wh - TOP_H;
 
     let over_canvas =
-        mx >= canvas_x && mx < canvas_x + canvas_w && my >= canvas_y && my < canvas_y + canvas_h;
+        mx >= canvas_x && mx < canvas_x + canvas_w && my >= canvas_y && my < canvas_y + canvas_h
+        && !color_picker_hovered;
 
     // ── Preview rect handles ──────────────────────────────────────────────────
     let (px, py, pw, ph) = preview_screen_rect(
@@ -73,8 +76,45 @@ pub fn update(
             let origin_sy = canvas_y + canvas_h * 0.5 + *pan_y;
             let world_x = (mx - origin_sx) / zoom.max(0.001);
             let world_y = (my - origin_sy) / zoom.max(0.001);
+            
+            // Auto-parenting
+            let parent_id = scene.widgets.iter().rev().find(|w| {
+                w.kind == crate::scene::WidgetKind::Panel &&
+                world_x >= w.x - w.w * 0.5 && world_x <= w.x + w.w * 0.5 &&
+                world_y >= w.y - w.h * 0.5 && world_y <= w.y + w.h * 0.5
+            }).map(|w| w.id);
+
             let id = scene.add_widget(kind, world_x, world_y);
+            if let Some(pid) = parent_id {
+                scene.set_parent(id, Some(pid));
+            }
             scene.selected_id = Some(id);
+            scene.sync_prop_strings();
+            *last_mx = mx;
+            *last_my = my;
+            return;
+        }
+
+        if scene.placement_drag.is_some() {
+            let origin_sx = canvas_x + canvas_w * 0.5 + *pan_x;
+            let origin_sy = canvas_y + canvas_h * 0.5 + *pan_y;
+            let world_x = (mx - origin_sx) / zoom.max(0.001);
+            let world_y = (my - origin_sy) / zoom.max(0.001);
+            
+            // Auto-parenting for placement
+            let parent_id = scene.widgets.iter().rev().find(|w| {
+                w.kind == crate::scene::WidgetKind::Panel &&
+                world_x >= w.x - w.w * 0.5 && world_x <= w.x + w.w * 0.5 &&
+                world_y >= w.y - w.h * 0.5 && world_y <= w.y + w.h * 0.5
+            }).map(|w| w.id);
+
+            let id = scene.finalize_placement(world_x, world_y);
+            if id != 0 {
+                if let Some(pid) = parent_id {
+                    scene.set_parent(id, Some(pid));
+                }
+            }
+            
             scene.sync_prop_strings();
             *last_mx = mx;
             *last_my = my;
@@ -116,6 +156,7 @@ pub fn update(
                     *preview_h = (*preview_h + dy).max(50.0);
                 }
             }
+            scene.resolve_all_layouts(*preview_w, *preview_h);
         }
     }
 
@@ -348,6 +389,7 @@ pub fn update(
                     for r in w.props.border_radii.iter_mut() {
                         *r = r.min(max_r);
                     }
+                    scene.sync_anchors(resize_id, *preview_w, *preview_h);
                 }
                 scene.sync_prop_strings();
             }
@@ -366,18 +408,8 @@ pub fn update(
             && radius_corner_hit.is_none()
             && scene.radius_drag.is_none()
         {
-            // Check if we hit a placed widget (top-most first)
-            let hit_id = scene
-                .widgets
-                .iter()
-                .rev()
-                .find(|w| {
-                    world_mx >= w.x - w.w * 0.5
-                        && world_mx <= w.x + w.w * 0.5
-                        && world_my >= w.y - w.h * 0.5
-                        && world_my <= w.y + w.h * 0.5
-                })
-                .map(|w| w.id);
+            // Resolve topmost widget by z-order and visible state.
+            let hit_id = scene.hit_test(world_mx, world_my);
 
             if let Some(id) = hit_id {
                 // Select and start canvas drag
@@ -411,15 +443,43 @@ pub fn update(
         // ── Drag widget ───────────────────────────────────────────────────────
         if lmb_down && scene.resize_widget.is_none() && scene.radius_drag.is_none() {
             if let Some((drag_id, off_x, off_y)) = scene.drag_canvas {
-                if let Some(w) = scene.widgets.iter_mut().find(|w| w.id == drag_id) {
-                    w.x = world_mx - off_x;
-                    w.y = world_my - off_y;
-                }
+                let (old_x, old_y) = if let Some(w) = scene.widgets.iter().find(|w| w.id == drag_id) {
+                    (w.x, w.y)
+                } else { (0.0, 0.0) };
+                
+                let new_x = world_mx - off_x;
+                let new_y = world_my - off_y;
+
+                // Snap logic
+                let grid_size = if scene.snap_to_grid { 20.0 } else { 0.0 };
+                let (snapped_x, snapped_y) = scene.snap_coordinates(drag_id, new_x, new_y, grid_size);
+
+                scene.move_widget(drag_id, snapped_x - old_x, snapped_y - old_y);
+                scene.sync_anchors(drag_id, *preview_w, *preview_h);
                 scene.sync_prop_strings();
             }
         }
 
         if lmb_released {
+            scene.active_snap_lines.clear();
+            
+            if let Some((drag_id, _, _)) = scene.drag_canvas {
+                if let Some(w) = scene.widgets.iter().find(|w| w.id == drag_id).cloned() {
+                    // Si no es un panel, buscamos si se soltó sobre uno
+                    if w.kind != crate::scene::WidgetKind::Panel {
+                        let parent_id = scene.widgets.iter().rev().find(|pw| {
+                            pw.id != drag_id &&
+                            pw.kind == crate::scene::WidgetKind::Panel &&
+                            w.x >= pw.x - pw.w * 0.5 && w.x <= pw.x + pw.w * 0.5 &&
+                            w.y >= pw.y - pw.h * 0.5 && w.y <= pw.y + pw.h * 0.5
+                        }).map(|pw| pw.id);
+                        
+                        if let Some(pid) = parent_id {
+                            scene.set_parent(drag_id, Some(pid));
+                        }
+                    }
+                }
+            }
             scene.drag_canvas = None;
         }
     }
@@ -478,6 +538,7 @@ pub fn draw(
     preview_w: f32,
     preview_h: f32,
     scene: &SceneState,
+    theme: &Theme,
 ) {
     let (win_w, win_h) = dc.ctx.window_size;
     let ww = win_w as f32;
@@ -494,14 +555,14 @@ pub fn draw(
 
     // 1. Background
     dc.gui
-        .rect(canvas_x, canvas_y, canvas_w, canvas_h, c_canvas());
+        .rect(canvas_x, canvas_y, canvas_w, canvas_h, c_canvas(theme));
 
     // 2. Grid
     let grid = 20.0 * zoom;
     if grid > 2.0 {
         let offset_x = pan_x % grid;
         let offset_y = pan_y % grid;
-        let color_grid = c_grid();
+        let color_grid = c_grid(theme);
         let mut gx = canvas_x + offset_x;
         while gx < canvas_x + canvas_w {
             dc.gui.rect(gx, canvas_y, 1.0, canvas_h, color_grid);
@@ -517,7 +578,7 @@ pub fn draw(
     // 3. Origin axes
     let origin_x = canvas_x + canvas_w * 0.5 + pan_x;
     let origin_y = canvas_y + canvas_h * 0.5 + pan_y;
-    let axis_col = ferrous_app::Color::hex("#007ACC50").to_linear_f32();
+    let axis_col = ferrous_engine::Color::hex("#007ACC50").to_linear_f32();
     dc.gui
         .rect(origin_x - 0.5, canvas_y, 1.0, canvas_h, axis_col);
     dc.gui
@@ -580,39 +641,148 @@ pub fn draw(
                 &label,
                 [label_x, label_y],
                 10.0,
-                ferrous_app::Color::hex("#888888").to_linear_f32(),
+                ferrous_engine::Color::hex("#888888").to_linear_f32(),
             );
         }
     }
 
     // 5. Placed widgets
-    for w in &scene.widgets {
-        if !w.props.visible {
-            continue;
-        }
+    let origin_x = canvas_x + canvas_w * 0.5 + pan_x;
+    let origin_y = canvas_y + canvas_h * 0.5 + pan_y;
 
-        // World → screen
+    // 5a. BACKGROUND PASS (Panels)
+    for w in &scene.widgets {
+        if w.kind != crate::scene::WidgetKind::Panel { continue; }
+        if !scene.is_effectively_visible(w.id) { continue; }
+
         let sw = w.w * zoom;
         let sh = w.h * zoom;
         let sx = origin_x + w.x * zoom - sw * 0.5;
         let sy = origin_y + w.y * zoom - sh * 0.5;
 
-        // Skip if out of canvas
-        if sx + sw < canvas_x
-            || sx > canvas_x + canvas_w
-            || sy + sh < canvas_y
-            || sy > canvas_y + canvas_h
-        {
+        if sx + sw < canvas_x || sx > canvas_x + canvas_w || sy + sh < canvas_y || sy > canvas_y + canvas_h {
             continue;
         }
 
         let is_selected = scene.selected_id == Some(w.id);
-        // Determine if a radius drag is active for this specific widget.
-        let active_radius_corner =
-            scene
-                .radius_drag
-                .and_then(|(drag_id, corner)| if drag_id == w.id { Some(corner) } else { None });
-        widget_editor::draw_widget(dc, w, sx, sy, sw, sh, is_selected, active_radius_corner);
+        let active_radius_corner = scene.radius_drag
+            .and_then(|(drag_id, corner)| if drag_id == w.id { Some(corner) } else { None });
+        
+        widget_editor::draw_widget(dc, w, sx, sy, sw, sh, is_selected, active_radius_corner, theme);
+    }
+
+    // 5b. FOREGROUND PASS (All other widgets)
+    for w in &scene.widgets {
+        if w.kind == crate::scene::WidgetKind::Panel { continue; }
+        if !scene.is_effectively_visible(w.id) { continue; }
+
+        let sw = w.w * zoom;
+        let sh = w.h * zoom;
+        let sx = origin_x + w.x * zoom - sw * 0.5;
+        let sy = origin_y + w.y * zoom - sh * 0.5;
+
+        if sx + sw < canvas_x || sx > canvas_x + canvas_w || sy + sh < canvas_y || sy > canvas_y + canvas_h {
+            continue;
+        }
+
+        let is_selected = scene.selected_id == Some(w.id);
+        let active_radius_corner = scene.radius_drag
+            .and_then(|(drag_id, corner)| if drag_id == w.id { Some(corner) } else { None });
+        
+        widget_editor::draw_widget(dc, w, sx, sy, sw, sh, is_selected, active_radius_corner, theme);
+    }
+
+    // 5c. Anchor lines overlay (selected widget)
+    if let Some(id) = scene.selected_id {
+        if let Some(w) = scene.widgets.iter().find(|w| w.id == id) {
+            let (prx, pry, prw, prh) = if let Some(pid) = w.parent_id {
+                if let Some(pw) = scene.widgets.iter().find(|w| w.id == pid) {
+                     let psw = pw.w * zoom;
+                     let psh = pw.h * zoom;
+                     (origin_x + pw.x * zoom - psw * 0.5, origin_y + pw.y * zoom - psh * 0.5, psw, psh)
+                } else {
+                     preview_screen_rect(canvas_x, canvas_y, canvas_w, canvas_h, pan_x, pan_y, zoom, preview_w, preview_h)
+                }
+            } else {
+                 preview_screen_rect(canvas_x, canvas_y, canvas_w, canvas_h, pan_x, pan_y, zoom, preview_w, preview_h)
+            };
+
+            let sw = w.w * zoom;
+            let sh = w.h * zoom;
+            let sx = origin_x + w.x * zoom - sw * 0.5;
+            let sy = origin_y + w.y * zoom - sh * 0.5;
+
+            let accol = [1.0, 0.45, 0.0, 0.9]; // Vibrant orange
+            
+            if w.props.anchor_top.is_some() {
+                dc.gui.rect(sx + sw*0.5 - 0.5, pry, 1.0, sy - pry, accol);
+                dc.gui.rect(sx + sw*0.5 - 2.0, pry, 4.0, 4.0, accol);
+            }
+            if w.props.anchor_bottom.is_some() {
+                dc.gui.rect(sx + sw*0.5 - 0.5, sy + sh, 1.0, (pry + prh) - (sy + sh), accol);
+                dc.gui.rect(sx + sw*0.5 - 2.0, pry + prh - 4.0, 4.0, 4.0, accol);
+            }
+            if w.props.anchor_left.is_some() {
+                dc.gui.rect(prx, sy + sh*0.5 - 0.5, sx - prx, 1.0, accol);
+                dc.gui.rect(prx, sy + sh*0.5 - 2.0, 4.0, 4.0, accol);
+            }
+            if w.props.anchor_right.is_some() {
+                dc.gui.rect(sx + sw, sy + sh*0.5 - 0.5, (prx + prw) - (sx + sw), 1.0, accol);
+                dc.gui.rect(prx + prw - 4.0, sy + sh*0.5 - 2.0, 4.0, 4.0, accol);
+            }
+        }
+    }
+
+    // 5d. Snap lines overlay
+    if !scene.active_snap_lines.is_empty() {
+        let snap_col = [1.0, 0.0, 1.0, 0.8]; // Magenta for snap guides 
+        for line in &scene.active_snap_lines {
+            // Convert to screen space
+            let screen_pos = if line.is_vertical {
+                origin_x + line.pos * zoom
+            } else {
+                origin_y + line.pos * zoom
+            };
+            
+            let screen_start = if line.is_vertical {
+                origin_y + line.length_start * zoom
+            } else {
+                origin_x + line.length_start * zoom
+            };
+            
+            let screen_end = if line.is_vertical {
+                origin_y + line.length_end * zoom
+            } else {
+                origin_x + line.length_end * zoom
+            };
+            
+            let len = screen_end - screen_start;
+            
+            if line.is_vertical {
+                dc.gui.rect(screen_pos, screen_start, 1.0, len, snap_col);
+            } else {
+                dc.gui.rect(screen_start, screen_pos, len, 1.0, snap_col);
+            }
+        }
+    }
+
+    // 5b. Placement ghost
+    if let Some(w) = &scene.placement_drag {
+        let sw = w.w * zoom;
+        let sh = w.h * zoom;
+        let sx = dc.ctx.input.mouse_pos_f32().0 - sw * 0.5;
+        let sy = dc.ctx.input.mouse_pos_f32().1 - sh * 0.5;
+        
+        widget_editor::draw_widget(dc, w, sx, sy, sw, sh, true, None, theme);
+        
+        // Draw hint text
+        dc.gui.draw_text(
+            dc.font,
+            "Haz click para colocar",
+            [sx, sy - 15.0],
+            10.0,
+            crate::theme::ThemeRegistry::hex_to_f32(&theme.colors.accent),
+        );
     }
 
     // 6. Controls hint
@@ -621,7 +791,7 @@ pub fn draw(
         "Rueda: zoom  |  Btn.medio / Btn.derecho: pan  |  Click: seleccionar  |  Arrastrar widget desde paleta",
         [canvas_x + 8.0, canvas_y + canvas_h - 18.0],
         10.0,
-        ferrous_app::Color::hex("#444444").to_linear_f32(),
+        ferrous_engine::Color::hex("#444444").to_linear_f32(),
     );
 
     dc.gui.pop_clip();

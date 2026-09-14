@@ -1,13 +1,15 @@
 // ── Button widget ─────────────────────────────────────────────────────────────
 
-use ferrous_app::{AppContext, DrawContext, MouseButton};
+use ferrous_engine::{AppContext, DrawContext, MouseButton};
 use ferrous_gui::GuiBatch;
 use ferrous_ui_core::Rect;
 
 use super::shared::{
-    default_row_colors, draw_pivot_overlay, draw_text_row, parse_hex_or, LABEL_W, ROW_H, ROW_PAD_X,
+    default_row_colors, draw_gradient_rect, draw_pivot_overlay, draw_text_row, parse_hex_or,
+    LABEL_W, ROW_H, ROW_PAD_X,
 };
-use crate::scene::{PlacedWidget, SceneState};
+use crate::scene::{GradientKind, PlacedWidget, SceneState};
+use crate::theme::{Theme, ThemeRegistry};
 
 // ── Canvas preview ────────────────────────────────────────────────────────────
 
@@ -20,8 +22,10 @@ pub fn draw_canvas(
     sh: f32,
     is_selected: bool,
     active_radius_corner: Option<usize>,
+    theme: &Theme,
 ) {
-    let bg_color = parse_hex_or(&w.props.bg_color_hex, [0.424, 0.388, 1.0, 1.0]);
+    let mut bg_color = parse_hex_or(&w.props.bg_color_hex, [0.424, 0.388, 1.0, 1.0]);
+    bg_color[3] *= w.props.opacity;
     let text_color = parse_hex_or(&w.props.text_color_hex, [1.0, 1.0, 1.0, 1.0]);
 
     let zoom = sw / w.w;
@@ -33,7 +37,14 @@ pub fn draw_canvas(
         (w.props.border_radii[3] * zoom).min(half),
     ];
 
+    // Draw solid base
     dc.gui.rect_radii(sx, sy, sw, sh, bg_color, radii);
+
+    // Draw gradient on top (clipped to button bounds)
+    let bg = w.props.to_background();
+    if !matches!(bg, ferrous_ui_core::Background::None) {
+        draw_gradient_rect(dc, &bg, sx, sy, sw, sh, radii, 128);
+    }
 
     let label = if w.props.label.is_empty() {
         "Button"
@@ -53,7 +64,8 @@ pub fn draw_canvas(
 
     if is_selected {
         let bw = 2.0_f32;
-        let sel_col = [1.0_f32, 0.8, 0.0, 1.0];
+        let mut sel_col = ThemeRegistry::hex_to_f32(&theme.colors.accent);
+        sel_col[3] = 1.0;
         dc.gui.rect_radii(
             sx - bw,
             sy - bw,
@@ -64,6 +76,9 @@ pub fn draw_canvas(
         );
         // Re-draw fill on top
         dc.gui.rect_radii(sx, sy, sw, sh, bg_color, radii);
+        if !matches!(bg, ferrous_ui_core::Background::None) {
+            draw_gradient_rect(dc, &bg, sx, sy, sw, sh, radii, 128);
+        }
         dc.gui
             .push_clip(Rect::new(sx + 2.0, sy + 2.0, sw - 4.0, sh - 4.0));
         dc.gui
@@ -73,9 +88,9 @@ pub fn draw_canvas(
         // Radius drag handles
         let rh_size = 8.0_f32;
         let rh_inner = 4.0_f32;
-        let rh_col: [f32; 4] = [0.0, 0.85, 0.85, 1.0];
-        let rh_col_active: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
-        let rh_fill: [f32; 4] = [0.08, 0.08, 0.12, 1.0];
+        let rh_col = ThemeRegistry::hex_to_f32(&theme.colors.accent);
+        let rh_col_active = ThemeRegistry::hex_to_f32(&theme.colors.text);
+        let rh_fill = ThemeRegistry::hex_to_f32(&theme.colors.surface);
         let corner_names = ["TL", "TR", "BL", "BR"];
         for corner in 0..4_usize {
             let (hx, hy) = radius_handle_pos(sx, sy, sw, sh, &radii, corner);
@@ -133,6 +148,9 @@ pub fn draw_props(
     right_w: f32,
     cy: &mut f32,
     selected_id: u32,
+    mx: f32,
+    my: f32,
+    theme: &Theme,
 ) {
     let selected = match scene.selected() {
         Some(s) => s,
@@ -146,7 +164,7 @@ pub fn draw_props(
     } else {
         &selected.props.label
     };
-    let (tc, bc, brc, sc) = default_row_colors("Label", label_focused);
+    let (tc, bc, brc, sc) = default_row_colors("Label", label_focused, theme);
     draw_text_row(
         dc,
         panel_x,
@@ -174,7 +192,7 @@ pub fn draw_props(
     } else {
         &size_buf
     };
-    let (tc, bc, brc, sc) = default_row_colors("Size", size_focused);
+    let (tc, bc, brc, sc) = default_row_colors("Size", size_focused, theme);
     draw_text_row(
         dc,
         panel_x,
@@ -202,7 +220,7 @@ pub fn draw_props(
         let focused = scene.editing_field.as_deref() == Some(corner_keys[i]);
         let buf = format!("{:.0}", radii_snap[i]);
         let val: &str = if focused { &scene.edit_buffer } else { &buf };
-        let (tc, bc, brc, sc) = default_row_colors(corner_labels[i], focused);
+        let (tc, bc, brc, sc) = default_row_colors(corner_labels[i], focused, theme);
         draw_text_row(
             dc,
             panel_x,
@@ -232,92 +250,281 @@ pub fn draw_props(
     let clicked = dc.ctx.input.button_just_pressed(MouseButton::Left);
 
     // Bg Color
-    let bg_focused = scene.editing_field.as_deref() == Some("bg_color");
-    let bg_buf = selected.props.bg_color_hex.clone();
-    let bg_value: &str = if bg_focused {
-        &scene.edit_buffer
-    } else {
-        &bg_buf
-    };
-    let (tc, bc, brc, sc) = default_row_colors("Bg Color", bg_focused);
-    draw_text_row(
-        dc,
-        panel_x,
-        *cy,
-        right_w,
-        "Bg Color",
-        bg_value,
-        bg_focused,
-        scene.edit_state.cursor_visible,
-        scene.edit_state.cursor_pos,
-        scene.edit_state.selection(),
-        scene.edit_state.all_selected,
-        tc,
-        bc,
-        brc,
-        sc,
-    );
-    let swatch_x = panel_x + right_w - ROW_PAD_X - (ROW_H - 8.0);
-    dc.gui.rect(
-        swatch_x,
-        *cy + 4.0,
-        ROW_H - 8.0,
-        ROW_H - 8.0,
-        parse_hex_or(&selected.props.bg_color_hex, [0.424, 0.388, 1.0, 1.0]),
-    );
+    let bg_hex = &selected.props.bg_color_hex;
+    super::shared::draw_color_row(dc, panel_x, *cy, right_w, "Bg Color", bg_hex, theme);
     *cy += ROW_H;
 
     // Text Color
-    let tc_focused = scene.editing_field.as_deref() == Some("text_color");
-    let tc_buf = selected.props.text_color_hex.clone();
-    let tc_value: &str = if tc_focused {
-        &scene.edit_buffer
-    } else {
-        &tc_buf
-    };
-    let (tcc, bcc, brcc, scc) = default_row_colors("Txt Color", tc_focused);
-    draw_text_row(
-        dc,
-        panel_x,
-        *cy,
-        right_w,
-        "Txt Color",
-        tc_value,
-        tc_focused,
-        scene.edit_state.cursor_visible,
-        scene.edit_state.cursor_pos,
-        scene.edit_state.selection(),
-        scene.edit_state.all_selected,
-        tcc,
-        bcc,
-        brcc,
-        scc,
-    );
-    let swatch_x2 = panel_x + right_w - ROW_PAD_X - (ROW_H - 8.0);
+    let tc_hex = &selected.props.text_color_hex;
+    super::shared::draw_color_row(dc, panel_x, *cy, right_w, "Txt Color", tc_hex, theme);
+    *cy += ROW_H;
+
+    // ── Gradient section ──────────────────────────────────────────────────
+    super::shared::draw_section(dc, panel_x, *cy, right_w, "GRADIENT", theme);
+    *cy += super::shared::SECTION_H;
+
+    // Gradient type button (cycles through Solid / Linear / Radial / Conic)
+    let grad_label = selected.props.gradient_type.label();
+    let btn_col = ThemeRegistry::hex_to_f32(&theme.colors.surface);
+    let txt_col = ThemeRegistry::hex_to_f32(&theme.colors.text_dim);
     dc.gui.rect(
-        swatch_x2,
-        *cy + 4.0,
-        ROW_H - 8.0,
-        ROW_H - 8.0,
-        parse_hex_or(&selected.props.text_color_hex, [1.0, 1.0, 1.0, 1.0]),
+        panel_x + ROW_PAD_X,
+        *cy + 3.0,
+        right_w - ROW_PAD_X * 2.0,
+        ROW_H - 6.0,
+        btn_col,
+    );
+    dc.gui.draw_text(
+        dc.font,
+        &format!("Type: {}", grad_label),
+        [panel_x + ROW_PAD_X + 4.0, *cy + 7.0],
+        10.0,
+        txt_col,
     );
     *cy += ROW_H;
 
-    // Label alignment
-    super::label_align::draw(dc, scene, panel_x, right_w, cy, selected_id);
-}
+    // Only show stop / angle rows when a gradient type is active
+    let has_grad = selected.props.gradient_type != GradientKind::None;
 
-// ── Inspector: update ─────────────────────────────────────────────────────────
+    // Stops
+    let stops_snap: Vec<(f32, String)> = selected.props.gradient_stops.clone();
+    for (i, (pos, hex)) in stops_snap.iter().enumerate() {
+        let pos_key = format!("stop_pos_{i}");
+        let col_key = format!("stop_col_{i}");
+
+        // Position
+        let pos_focused = scene.editing_field.as_deref() == Some(&pos_key);
+        let pos_buf = format!("{:.2}", pos);
+        let pos_val: &str = if pos_focused {
+            &scene.edit_buffer
+        } else {
+            &pos_buf
+        };
+        let pos_lbl = format!("S{i} Pos");
+        let (tc, bc, brc, sc) = default_row_colors(&pos_lbl, pos_focused, theme);
+        draw_text_row(
+            dc,
+            panel_x,
+            *cy,
+            right_w,
+            &pos_lbl,
+            pos_val,
+            pos_focused,
+            scene.edit_state.cursor_visible,
+            scene.edit_state.cursor_pos,
+            scene.edit_state.selection(),
+            scene.edit_state.all_selected,
+            tc,
+            bc,
+            brc,
+            sc,
+        );
+        *cy += ROW_H;
+
+        // Colour hex
+        let col_focused = scene.editing_field.as_deref() == Some(&col_key);
+        let col_val: &str = if col_focused { &scene.edit_buffer } else { hex };
+        let col_lbl = format!("S{i} Col");
+        let (tc, bc, brc, sc) = default_row_colors(&col_lbl, col_focused, theme);
+        draw_text_row(
+            dc,
+            panel_x,
+            *cy,
+            right_w,
+            &col_lbl,
+            col_val,
+            col_focused,
+            scene.edit_state.cursor_visible,
+            scene.edit_state.cursor_pos,
+            scene.edit_state.selection(),
+            scene.edit_state.all_selected,
+            tc,
+            bc,
+            brc,
+            sc,
+        );
+        // Colour swatch
+        let sw_x = panel_x + right_w - ROW_PAD_X - (ROW_H - 8.0);
+        dc.gui.rect(
+            sw_x,
+            *cy + 4.0,
+            ROW_H - 8.0,
+            ROW_H - 8.0,
+            parse_hex_or(hex, [1.0, 0.0, 1.0, 1.0]),
+        );
+        *cy += ROW_H;
+    }
+
+    // Add / Remove stop buttons
+    {
+        let half_w = (right_w - ROW_PAD_X * 2.0) * 0.5 - 2.0;
+        let add_col = ThemeRegistry::hex_to_f32(&theme.colors.success);
+        let rem_col = ThemeRegistry::hex_to_f32(&theme.colors.error);
+        let lbl_col = ThemeRegistry::hex_to_f32(&theme.colors.text);
+        dc.gui
+            .rect(panel_x + ROW_PAD_X, *cy + 3.0, half_w, ROW_H - 6.0, add_col);
+        dc.gui.draw_text(
+            dc.font,
+            "+ Stop",
+            [panel_x + ROW_PAD_X + 4.0, *cy + 7.0],
+            10.0,
+            lbl_col,
+        );
+        dc.gui.rect(
+            panel_x + ROW_PAD_X + half_w + 4.0,
+            *cy + 3.0,
+            half_w,
+            ROW_H - 6.0,
+            rem_col,
+        );
+        dc.gui.draw_text(
+            dc.font,
+            "- Stop",
+            [panel_x + ROW_PAD_X + half_w + 8.0, *cy + 7.0],
+            10.0,
+            lbl_col,
+        );
+    }
+    *cy += ROW_H;
+
+    // Angle (linear only)
+    if has_grad && selected.props.gradient_type == GradientKind::Linear {
+        let ang_focused = scene.editing_field.as_deref() == Some("grad_angle");
+        let ang_buf = format!("{:.0}", selected.props.gradient_angle);
+        let ang_val: &str = if ang_focused {
+            &scene.edit_buffer
+        } else {
+            &ang_buf
+        };
+        let (tc, bc, brc, sc) = default_row_colors("Angle", ang_focused, theme);
+        draw_text_row(
+            dc,
+            panel_x,
+            *cy,
+            right_w,
+            "Angle",
+            ang_val,
+            ang_focused,
+            scene.edit_state.cursor_visible,
+            scene.edit_state.cursor_pos,
+            scene.edit_state.selection(),
+            scene.edit_state.all_selected,
+            tc,
+            bc,
+            brc,
+            sc,
+        );
+        *cy += ROW_H;
+    }
+
+    // Center X / Y (radial & conic)
+    if has_grad
+        && matches!(
+            selected.props.gradient_type,
+            GradientKind::Radial | GradientKind::Conic
+        )
+    {
+        for (lbl, key) in [("Ctr X", "grad_cx"), ("Ctr Y", "grad_cy")] {
+            let focused = scene.editing_field.as_deref() == Some(key);
+            let idx = if key == "grad_cx" { 0 } else { 1 };
+            let buf = format!("{:.2}", selected.props.gradient_center[idx]);
+            let val: &str = if focused { &scene.edit_buffer } else { &buf };
+            let (tc, bc, brc, sc) = default_row_colors(lbl, focused, theme);
+            draw_text_row(
+                dc,
+                panel_x,
+                *cy,
+                right_w,
+                lbl,
+                val,
+                focused,
+                scene.edit_state.cursor_visible,
+                scene.edit_state.cursor_pos,
+                scene.edit_state.selection(),
+                scene.edit_state.all_selected,
+                tc,
+                bc,
+                brc,
+                sc,
+            );
+            *cy += ROW_H;
+        }
+    }
+
+    // Radius (radial only)
+    if has_grad && selected.props.gradient_type == GradientKind::Radial {
+        let rad_focused = scene.editing_field.as_deref() == Some("grad_radius");
+        let rad_buf = format!("{:.2}", selected.props.gradient_radius);
+        let rad_val: &str = if rad_focused {
+            &scene.edit_buffer
+        } else {
+            &rad_buf
+        };
+        let (tc, bc, brc, sc) = default_row_colors("Radius", rad_focused, theme);
+        draw_text_row(
+            dc,
+            panel_x,
+            *cy,
+            right_w,
+            "Radius",
+            rad_val,
+            rad_focused,
+            scene.edit_state.cursor_visible,
+            scene.edit_state.cursor_pos,
+            scene.edit_state.selection(),
+            scene.edit_state.all_selected,
+            tc,
+            bc,
+            brc,
+            sc,
+        );
+        *cy += ROW_H;
+    }
+
+    // Start angle (conic only)
+    if has_grad && selected.props.gradient_type == GradientKind::Conic {
+        let sa_focused = scene.editing_field.as_deref() == Some("grad_start_angle");
+        let sa_buf = format!("{:.0}", selected.props.gradient_start_angle);
+        let sa_val: &str = if sa_focused {
+            &scene.edit_buffer
+        } else {
+            &sa_buf
+        };
+        let (tc, bc, brc, sc) = default_row_colors("Start Ang", sa_focused, theme);
+        draw_text_row(
+            dc,
+            panel_x,
+            *cy,
+            right_w,
+            "Start Ang",
+            sa_val,
+            sa_focused,
+            scene.edit_state.cursor_visible,
+            scene.edit_state.cursor_pos,
+            scene.edit_state.selection(),
+            scene.edit_state.all_selected,
+            tc,
+            bc,
+            brc,
+            sc,
+        );
+        *cy += ROW_H;
+    }
+
+    // Label alignment
+    super::label_align::draw(dc, scene, panel_x, right_w, cy, selected_id, theme);
+}
 
 pub fn update_props(
     ctx: &mut AppContext,
     scene: &mut SceneState,
-    _panel_x: f32,
+    panel_x: f32,
     right_w: f32,
-    _mx: f32,
+    mx: f32,
     my: f32,
     hit_x: f32,
     cy: &mut f32,
+    cp: &mut crate::color_picker::ColorPickerState,
 ) {
     let val_x = LABEL_W + ROW_PAD_X;
     let clicked = ctx.input.button_just_pressed(MouseButton::Left);
@@ -358,26 +565,154 @@ pub fn update_props(
         }
         *cy += ROW_H;
     }
-
-    // Bg Color
     if my >= *cy && my < *cy + ROW_H && hit_x >= val_x {
-        focus_text(scene, selected_id, "bg_color", |w| {
-            w.props.bg_color_hex.clone()
-        });
+        let current = scene.selected().map(|w| w.props.bg_color_hex.clone()).unwrap_or_default();
+        cp.active = true;
+        cp.target_field = "bg_color".to_string();
+        cp.widget_id = Some(selected_id);
+        cp.screen_pos = (mx, my);
+        cp.current_color = parse_hex_or(&current, [1.0, 1.0, 1.0, 1.0]);
+            cp.alpha = scene.selected().map(|w| w.props.opacity).unwrap_or(1.0);
         return;
     }
     *cy += ROW_H;
 
     // Text Color
     if my >= *cy && my < *cy + ROW_H && hit_x >= val_x {
-        focus_text(scene, selected_id, "text_color", |w| {
-            w.props.text_color_hex.clone()
-        });
+        let current = scene.selected().map(|w| w.props.text_color_hex.clone()).unwrap_or_default();
+        cp.active = true;
+        cp.target_field = "text_color".to_string();
+        cp.widget_id = Some(selected_id);
+        cp.screen_pos = (mx, my);
+        cp.current_color = parse_hex_or(&current, [1.0, 1.0, 1.0, 1.0]);
+            cp.alpha = 1.0;
         return;
     }
     *cy += ROW_H;
 
-    super::label_align::update(scene, right_w, _mx, my, hit_x, cy, selected_id);
+    // ── Gradient section ──────────────────────────────────────────────────
+    *cy += super::shared::SECTION_H; // section header
+
+    // Type toggle button
+    if my >= *cy && my < *cy + ROW_H {
+        if let Some(w) = scene.selected_mut() {
+            w.props.gradient_type = w.props.gradient_type.cycle_next();
+        }
+        return;
+    }
+    *cy += ROW_H;
+
+    let stops_len = scene
+        .selected()
+        .map(|w| w.props.gradient_stops.len())
+        .unwrap_or(0);
+    let grad_type = scene
+        .selected()
+        .map(|w| w.props.gradient_type.clone())
+        .unwrap_or(GradientKind::None);
+
+    // Stop rows (pos + col per stop)
+    for i in 0..stops_len {
+        // Pos
+        if my >= *cy && my < *cy + ROW_H && hit_x >= val_x {
+            let key = format!("stop_pos_{i}");
+            focus_text(scene, selected_id, &key, move |w| {
+                format!(
+                    "{:.2}",
+                    w.props.gradient_stops.get(i).map(|s| s.0).unwrap_or(0.0)
+                )
+            });
+            return;
+        }
+        *cy += ROW_H;
+        // Col
+        if my >= *cy && my < *cy + ROW_H && hit_x >= val_x {
+            let current = scene.selected()
+                .map(|w| w.props.gradient_stops.get(i).map(|s| s.1.clone()).unwrap_or_default())
+                .unwrap_or_default();
+            cp.active = true;
+            cp.target_field = format!("stop_col_{i}");
+            cp.widget_id = Some(selected_id);
+            cp.screen_pos = (mx, my);
+            cp.current_color = parse_hex_or(&current, [1.0, 1.0, 1.0, 1.0]);
+            return;
+        }
+        *cy += ROW_H;
+    }
+
+    // Add / Remove stop buttons
+    if my >= *cy && my < *cy + ROW_H {
+        let half_w = (right_w - ROW_PAD_X * 2.0) * 0.5 - 2.0;
+        let add_btn_x = panel_x + ROW_PAD_X;
+        let rem_btn_x = panel_x + ROW_PAD_X + half_w + 4.0;
+        if hit_x >= add_btn_x && hit_x < add_btn_x + half_w {
+            if let Some(w) = scene.selected_mut() {
+                let new_pos = if w.props.gradient_stops.len() > 1 {
+                    let last = w.props.gradient_stops.last().unwrap().0;
+                    (last + (1.0 - last) * 0.5).min(1.0)
+                } else {
+                    1.0
+                };
+                w.props
+                    .gradient_stops
+                    .push((new_pos, "#FFFFFF".to_string()));
+            }
+            return;
+        } else if hit_x >= rem_btn_x {
+            if let Some(w) = scene.selected_mut() {
+                if w.props.gradient_stops.len() > 2 {
+                    w.props.gradient_stops.pop();
+                }
+            }
+            return;
+        }
+    }
+    *cy += ROW_H;
+
+    // Angle (linear)
+    if grad_type == GradientKind::Linear {
+        if my >= *cy && my < *cy + ROW_H && hit_x >= val_x {
+            focus_text(scene, selected_id, "grad_angle", |w| {
+                format!("{:.0}", w.props.gradient_angle)
+            });
+            return;
+        }
+        *cy += ROW_H;
+    }
+
+    // Center + Radius / Start angle (radial / conic)
+    if matches!(grad_type, GradientKind::Radial | GradientKind::Conic) {
+        for key in ["grad_cx", "grad_cy"] {
+            if my >= *cy && my < *cy + ROW_H && hit_x >= val_x {
+                let idx = if key == "grad_cx" { 0usize } else { 1 };
+                focus_text(scene, selected_id, key, move |w| {
+                    format!("{:.2}", w.props.gradient_center[idx])
+                });
+                return;
+            }
+            *cy += ROW_H;
+        }
+    }
+    if grad_type == GradientKind::Radial {
+        if my >= *cy && my < *cy + ROW_H && hit_x >= val_x {
+            focus_text(scene, selected_id, "grad_radius", |w| {
+                format!("{:.2}", w.props.gradient_radius)
+            });
+            return;
+        }
+        *cy += ROW_H;
+    }
+    if grad_type == GradientKind::Conic {
+        if my >= *cy && my < *cy + ROW_H && hit_x >= val_x {
+            focus_text(scene, selected_id, "grad_start_angle", |w| {
+                format!("{:.0}", w.props.gradient_start_angle)
+            });
+            return;
+        }
+        *cy += ROW_H;
+    }
+
+    super::label_align::update(scene, right_w, mx, my, hit_x, cy, selected_id);
 }
 
 // ── Commit ────────────────────────────────────────────────────────────────────
@@ -427,7 +762,56 @@ pub fn commit_field(scene: &mut SceneState, field: &str, buf: String) -> bool {
                 }
                 return true;
             }
+            "grad_angle" => {
+                if let Ok(v) = buf.trim().parse::<f32>() {
+                    w.props.gradient_angle = v;
+                }
+                return true;
+            }
+            "grad_cx" => {
+                if let Ok(v) = buf.trim().parse::<f32>() {
+                    w.props.gradient_center[0] = v.clamp(0.0, 1.0);
+                }
+                return true;
+            }
+            "grad_cy" => {
+                if let Ok(v) = buf.trim().parse::<f32>() {
+                    w.props.gradient_center[1] = v.clamp(0.0, 1.0);
+                }
+                return true;
+            }
+            "grad_radius" => {
+                if let Ok(v) = buf.trim().parse::<f32>() {
+                    w.props.gradient_radius = v.clamp(0.01, 2.0);
+                }
+                return true;
+            }
+            "grad_start_angle" => {
+                if let Ok(v) = buf.trim().parse::<f32>() {
+                    w.props.gradient_start_angle = v;
+                }
+                return true;
+            }
             _ => {}
+        }
+        // Dynamic stop keys: "stop_pos_{i}" / "stop_col_{i}"
+        if let Some(rest) = field.strip_prefix("stop_pos_") {
+            if let Ok(i) = rest.parse::<usize>() {
+                if let Ok(v) = buf.trim().parse::<f32>() {
+                    if let Some(stop) = w.props.gradient_stops.get_mut(i) {
+                        stop.0 = v.clamp(0.0, 1.0);
+                    }
+                }
+                return true;
+            }
+        }
+        if let Some(rest) = field.strip_prefix("stop_col_") {
+            if let Ok(i) = rest.parse::<usize>() {
+                if let Some(stop) = w.props.gradient_stops.get_mut(i) {
+                    stop.1 = buf;
+                }
+                return true;
+            }
         }
     }
     false

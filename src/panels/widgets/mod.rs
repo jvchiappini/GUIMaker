@@ -8,6 +8,7 @@ pub mod label_align;
 pub mod label;
 pub mod button;
 pub mod generic;
+pub mod layout_props;
 
 // Re-export the things widget_editor.rs and right_panel.rs import directly.
 pub use shared::{

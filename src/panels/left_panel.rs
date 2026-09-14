@@ -1,10 +1,11 @@
-use ferrous_app::{AppContext, Color as AppColor, DrawContext, MouseButton};
+use ferrous_engine::{AppContext, Color as AppColor, DrawContext, MouseButton};
 use ferrous_ui_core::Rect;
 
 use crate::{
     c_border,
     scene::{SceneState, PALETTE},
     TOP_H,
+    theme::{Theme, ThemeRegistry},
     // hierarchy-specific logic has been moved into its own module
     panels::hierarchy_panel::{draw_hierarchy, update_hierarchy, hierarchy_total_height},
 };
@@ -147,6 +148,7 @@ pub fn draw(
     left_w: f32,
     palette_state: &PaletteState,
     scene: &SceneState,
+    theme: &Theme,
 ) {
     let (_, win_h) = dc.ctx.window_size;
     let panel_h = win_h as f32 - TOP_H;
@@ -160,7 +162,7 @@ pub fn draw(
         tab_bar_y,
         left_w - 2.0,
         TAB_H,
-        AppColor::hex("#2D2D30").to_linear_f32(),
+        ThemeRegistry::hex_to_f32(&theme.colors.secondary),
     );
 
     for (i, label) in ["Palette", "Hierarchy"].iter().enumerate() {
@@ -170,9 +172,9 @@ pub fn draw(
             _ => palette_state.active_tab == LeftTab::Hierarchy,
         };
         let tab_bg = if is_active {
-            AppColor::hex("#252526").to_linear_f32()
+            ThemeRegistry::hex_to_f32(&theme.colors.surface)
         } else {
-            AppColor::hex("#2D2D30").to_linear_f32()
+            ThemeRegistry::hex_to_f32(&theme.colors.secondary)
         };
         dc.gui.rect(tx, tab_bar_y, tab_w, TAB_H, tab_bg);
         // Active tab indicator line
@@ -182,7 +184,7 @@ pub fn draw(
                 tab_bar_y + TAB_H - 2.0,
                 tab_w,
                 2.0,
-                [0.0, 0.478, 0.800, 1.0],
+                ThemeRegistry::hex_to_f32(&theme.colors.accent),
             );
         }
         // Separator between tabs
@@ -192,7 +194,7 @@ pub fn draw(
                 tab_bar_y,
                 1.0,
                 TAB_H,
-                AppColor::hex("#3C3C3C").to_linear_f32(),
+                ThemeRegistry::hex_to_f32(&theme.colors.border),
             );
         }
         dc.gui.draw_text(
@@ -201,9 +203,9 @@ pub fn draw(
             [tx + tab_w * 0.5 - label.len() as f32 * 3.2, tab_bar_y + 9.0],
             11.0,
             if is_active {
-                AppColor::hex("#FFFFFF").to_linear_f32()
+                ThemeRegistry::hex_to_f32(&theme.colors.text)
             } else {
-                AppColor::hex("#888888").to_linear_f32()
+                ThemeRegistry::hex_to_f32(&theme.colors.text_dim)
             },
         );
     }
@@ -215,7 +217,7 @@ pub fn draw(
         .push_clip(Rect::new(0.0, content_top, left_w - 2.0, content_h));
 
     match palette_state.active_tab {
-        LeftTab::Palette => draw_palette(dc, left_w, palette_state, content_top, content_h, mx, my),
+        LeftTab::Palette => draw_palette(dc, left_w, palette_state, content_top, content_h, mx, my, theme),
         LeftTab::Hierarchy => draw_hierarchy(
             dc,
             left_w,
@@ -225,6 +227,7 @@ pub fn draw(
             content_h,
             mx,
             my,
+            theme,
         ),
     }
 
@@ -234,13 +237,15 @@ pub fn draw(
     if let Some(kind) = scene.palette_drag {
         let gx = mx + 12.0;
         let gy = my - 11.0;
-        dc.gui.rect(gx, gy, 120.0, 22.0, [0.0, 0.478, 0.800, 0.9]);
+        let mut bg = ThemeRegistry::hex_to_f32(&theme.colors.accent);
+        bg[3] = 0.9;
+        dc.gui.rect(gx, gy, 120.0, 22.0, bg);
         dc.gui.draw_text(
             dc.font,
             kind.display_name(),
             [gx + 6.0, gy + 5.0],
             10.0,
-            AppColor::hex("#FFFFFF").to_linear_f32(),
+            ThemeRegistry::hex_to_f32(&theme.colors.text),
         );
     }
 }
@@ -253,6 +258,7 @@ fn draw_palette(
     content_h: f32,
     mx: f32,
     my: f32,
+    theme: &Theme,
 ) {
     let scroll = palette_state.scroll_y;
     let mut cursor_y = content_top - scroll;
@@ -270,21 +276,21 @@ fn draw_palette(
                 cat_y,
                 left_w - 2.0,
                 CAT_H,
-                AppColor::hex("#2D2D30").to_linear_f32(),
+                ThemeRegistry::hex_to_f32(&theme.colors.secondary),
             );
             dc.gui.draw_text(
                 dc.font,
                 arrow,
                 [ITEM_PAD_X, cat_y + 5.0],
                 9.0,
-                AppColor::hex("#888888").to_linear_f32(),
+                ThemeRegistry::hex_to_f32(&theme.colors.text_dim),
             );
             dc.gui.draw_text(
                 dc.font,
                 cat.name,
                 [ITEM_PAD_X + 14.0, cat_y + 5.0],
                 11.0,
-                AppColor::hex("#CCCCCC").to_linear_f32(),
+                ThemeRegistry::hex_to_f32(&theme.colors.text),
             );
         }
         cursor_y += CAT_H + 2.0;
@@ -298,9 +304,16 @@ fn draw_palette(
                 let hovered =
                     mx >= 0.0 && mx < left_w - 2.0 && my >= cursor_y && my < cursor_y + ITEM_H;
                 let bg = if hovered {
-                    AppColor::hex("#37373D").to_linear_f32()
+                    ThemeRegistry::hex_to_f32(&theme.colors.accent) // Usually some hover color
                 } else {
-                    AppColor::hex("#252526").to_linear_f32()
+                    ThemeRegistry::hex_to_f32(&theme.colors.surface)
+                };
+                let bg = if hovered {
+                    let mut c = ThemeRegistry::hex_to_f32(&theme.colors.primary);
+                    c[3] = 0.3;
+                    c
+                } else {
+                    ThemeRegistry::hex_to_f32(&theme.colors.surface)
                 };
                 dc.gui.rect(0.0, cursor_y, left_w - 2.0, ITEM_H, bg);
                 dc.gui
@@ -311,9 +324,9 @@ fn draw_palette(
                     [ITEM_PAD_X + 8.0, cursor_y + 6.0],
                     11.0,
                     if hovered {
-                        AppColor::hex("#FFFFFF").to_linear_f32()
+                        ThemeRegistry::hex_to_f32(&theme.colors.text)
                     } else {
-                        AppColor::hex("#BBBBBB").to_linear_f32()
+                        ThemeRegistry::hex_to_f32(&theme.colors.text_dim)
                     },
                 );
             }
@@ -339,7 +352,7 @@ fn palette_total_height(state: &PaletteState) -> f32 {
 
 // ── Background / border ───────────────────────────────────────────────────────
 
-pub fn draw_background(dc: &mut DrawContext<'_, '_>, left_w: f32) {
+pub fn draw_background(dc: &mut DrawContext<'_, '_>, left_w: f32, theme: &Theme) {
     let (_, win_h) = dc.ctx.window_size;
     let panel_h = win_h as f32 - TOP_H;
     dc.gui.rect(
@@ -347,12 +360,12 @@ pub fn draw_background(dc: &mut DrawContext<'_, '_>, left_w: f32) {
         TOP_H,
         left_w,
         panel_h,
-        AppColor::hex("#252526").to_linear_f32(),
+        ThemeRegistry::hex_to_f32(&theme.colors.surface),
     );
 }
 
-pub fn draw_border(dc: &mut DrawContext<'_, '_>, left_w: f32) {
+pub fn draw_border(dc: &mut DrawContext<'_, '_>, left_w: f32, theme: &Theme) {
     let (_, win_h) = dc.ctx.window_size;
     let canvas_h = win_h as f32 - TOP_H;
-    dc.gui.rect(left_w - 2.0, TOP_H, 2.0, canvas_h, c_border());
+    dc.gui.rect(left_w - 2.0, TOP_H, 2.0, canvas_h, c_border(theme));
 }

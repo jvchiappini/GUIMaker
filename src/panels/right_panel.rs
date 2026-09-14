@@ -1,4 +1,4 @@
-use ferrous_app::{AppContext, Color as AppColor, DrawContext, KeyCode, MouseButton};
+use ferrous_engine::{AppContext, Color as AppColor, DrawContext, KeyCode, MouseButton};
 use ferrous_gui::Rect;
 use ferrous_ui_core::{FieldKey, FieldKeyResult};
 
@@ -7,17 +7,30 @@ use crate::{
     panels::widget_editor::{self, BTN_W, HEADER_H, LABEL_W, ROW_H, ROW_PAD_X, SECTION_H},
     scene::SceneState,
     TOP_H,
+    theme::{Theme, ThemeRegistry},
 };
 
 // ── Update (interaction) ──────────────────────────────────────────────────────
 
-pub fn update(ctx: &mut AppContext, right_w: f32, scene: &mut SceneState) {
+pub fn update(ctx: &mut AppContext, right_w: f32, scene: &mut SceneState, scroll_y: &mut f32, cp: &mut crate::color_picker::ColorPickerState) {
     let (win_w, win_h) = ctx.window_size;
     let panel_x = win_w as f32 - right_w;
     let panel_h = win_h as f32 - TOP_H;
 
     let (mx, my) = ctx.input.mouse_pos_f32();
     let mouse_in_panel = mx >= panel_x && mx < win_w as f32 && my >= TOP_H && my < TOP_H + panel_h;
+    
+    // Scroll handling
+    if mouse_in_panel {
+        let (_, sy) = ctx.input.scroll_delta();
+        if sy != 0.0 {
+            const SCROLL_SPEED: f32 = 30.0;
+            // Limit scroll based on a rough estimate or fixed large value for now
+            // Better: just let it scroll and draw logic will handle it
+            *scroll_y = (*scroll_y - sy * SCROLL_SPEED).max(0.0);
+        }
+    }
+
     let clicked = ctx.input.button_just_pressed(MouseButton::Left);
 
     // ── Keyboard handling for focused text field ─────────────────────────
@@ -194,10 +207,13 @@ pub fn update(ctx: &mut AppContext, right_w: f32, scene: &mut SceneState) {
     // row Y positions start after the "Transform" header
     let mut ty = cursor_y + SECTION_H;
 
+    // Apply scroll offset to mouse Y for hit detection
+    let my_scrolled = my + *scroll_y;
+
     if clicked {
         if try_focus_field(
             clicked,
-            my,
+            my_scrolled,
             ty,
             hit_x,
             val_x,
@@ -211,7 +227,7 @@ pub fn update(ctx: &mut AppContext, right_w: f32, scene: &mut SceneState) {
         ty += ROW_H;
         if try_focus_field(
             clicked,
-            my,
+            my_scrolled,
             ty,
             hit_x,
             val_x,
@@ -225,7 +241,7 @@ pub fn update(ctx: &mut AppContext, right_w: f32, scene: &mut SceneState) {
         ty += ROW_H;
         if try_focus_field(
             clicked,
-            my,
+            my_scrolled,
             ty,
             hit_x,
             val_x,
@@ -239,7 +255,7 @@ pub fn update(ctx: &mut AppContext, right_w: f32, scene: &mut SceneState) {
         ty += ROW_H;
         if try_focus_field(
             clicked,
-            my,
+            my_scrolled,
             ty,
             hit_x,
             val_x,
@@ -257,52 +273,58 @@ pub fn update(ctx: &mut AppContext, right_w: f32, scene: &mut SceneState) {
     cursor_y += SECTION_H + ROW_H * 4.0;
 
     // -- Properties section: text fields only --------------------------------
-    widget_editor::update_properties(ctx, scene, panel_x, right_w, mx, my, hit_x, &mut cursor_y);
+    widget_editor::update_properties(ctx, scene, panel_x, right_w, mx, my_scrolled, my, hit_x, &mut cursor_y, cp);
 }
 
 // ── Draw (immediate mode) ─────────────────────────────────────────────────────
-
-pub fn draw(dc: &mut DrawContext<'_, '_>, right_w: f32, scene: &mut SceneState) {
+pub fn draw(dc: &mut DrawContext<'_, '_>, right_w: f32, scene: &mut SceneState, theme: &Theme, scroll_y: f32, cp: &crate::color_picker::ColorPickerState) {
     let (win_w, win_h) = dc.ctx.window_size;
     let panel_x = win_w as f32 - right_w;
 
-    dc.gui
-        .push_clip(Rect::new(panel_x, TOP_H, right_w, win_h as f32 - TOP_H));
+    // 1. Background for the entire panel area
+    draw_background(dc, right_w, theme);
+    draw_border(dc, right_w, theme);
 
-    // -- Header bar -----------------------------------------------------------
+    // 2. Fixed Header bar
     dc.gui.rect(
         panel_x,
         TOP_H,
         right_w,
         HEADER_H,
-        AppColor::hex("#2D2D30").to_linear_f32(),
+        ThemeRegistry::hex_to_f32(&theme.colors.secondary),
     );
     dc.gui.draw_text(
         dc.font,
         "PROPERTIES",
         [panel_x + ROW_PAD_X, TOP_H + 10.0],
         10.0,
-        AppColor::hex("#888888").to_linear_f32(),
+        ThemeRegistry::hex_to_f32(&theme.colors.text_dim),
     );
 
-    let mut cursor_y = TOP_H + HEADER_H;
+    // 3. Scrollable content area
+    let content_h = win_h as f32 - TOP_H - HEADER_H;
+    dc.gui.push_clip(Rect::new(panel_x, TOP_H + HEADER_H, right_w, content_h));
 
-    // Extract snapshot data from selected widget to avoid borrow conflicts.
+    // Extract snapshot data from selected widget
     let snapshot = scene
         .selected()
         .map(|s| (s.id, s.kind, s.x, s.y, s.w, s.h, s.props.visible));
+
     let Some((selected_id, selected_kind, sel_x, sel_y, sel_w, sel_h, sel_visible)) = snapshot
     else {
         dc.gui.draw_text(
             dc.font,
             "No widget selected",
-            [panel_x + ROW_PAD_X, cursor_y + 10.0],
+            [panel_x + ROW_PAD_X, TOP_H + HEADER_H + 10.0 - scroll_y],
             10.0,
-            AppColor::hex("#666666").to_linear_f32(),
+            ThemeRegistry::hex_to_f32(&theme.colors.text_dim),
         );
         dc.gui.pop_clip();
         return;
     };
+
+    // All content inside the clip should be offset by scroll_y
+    let mut cursor_y = TOP_H + HEADER_H - scroll_y;
 
     // -- Kind badge -----------------------------------------------------------
     dc.gui.rect(
@@ -317,7 +339,7 @@ pub fn draw(dc: &mut DrawContext<'_, '_>, right_w: f32, scene: &mut SceneState) 
         selected_kind.display_name(),
         [panel_x + ROW_PAD_X + 6.0, cursor_y + 9.0],
         10.0,
-        [1.0, 1.0, 1.0, 1.0],
+        ThemeRegistry::hex_to_f32(&theme.colors.text),
     );
     cursor_y += 22.0 + 10.0;
 
@@ -328,13 +350,13 @@ pub fn draw(dc: &mut DrawContext<'_, '_>, right_w: f32, scene: &mut SceneState) 
             "(hidden widget)",
             [panel_x + ROW_PAD_X, cursor_y + 6.0],
             10.0,
-            AppColor::hex("#888888").to_linear_f32(),
+            ThemeRegistry::hex_to_f32(&theme.colors.text_dim),
         );
         cursor_y += ROW_H;
     }
 
     // -- Transform section ----------------------------------------------------
-    widget_editor::draw_section(dc, panel_x, cursor_y, right_w, "Transform");
+    widget_editor::draw_section(dc, panel_x, cursor_y, right_w, "Transform", theme);
     cursor_y += SECTION_H;
 
     let (mx, my) = dc.ctx.input.mouse_pos_f32();
@@ -351,6 +373,7 @@ pub fn draw(dc: &mut DrawContext<'_, '_>, right_w: f32, scene: &mut SceneState) 
     } else {
         format!("{:.0}", sel_x)
     };
+    let x_focused = scene.editing_field.as_deref() == Some("tx");
     widget_editor::draw_number_row(
         dc,
         panel_x,
@@ -360,11 +383,12 @@ pub fn draw(dc: &mut DrawContext<'_, '_>, right_w: f32, scene: &mut SceneState) 
         my,
         "X",
         &x_buf,
-        scene.editing_field.as_deref() == Some("tx"),
-        scene.edit_state.cursor_visible,
+        x_focused,
+        x_focused,
         scene.edit_state.cursor_pos,
         scene.edit_state.selection(),
         scene.edit_state.all_selected,
+        theme,
     );
     if dc.gui.button(
         dc.font,
@@ -404,6 +428,7 @@ pub fn draw(dc: &mut DrawContext<'_, '_>, right_w: f32, scene: &mut SceneState) 
     } else {
         format!("{:.0}", sel_y)
     };
+    let y_focused = scene.editing_field.as_deref() == Some("ty");
     widget_editor::draw_number_row(
         dc,
         panel_x,
@@ -413,11 +438,12 @@ pub fn draw(dc: &mut DrawContext<'_, '_>, right_w: f32, scene: &mut SceneState) 
         my,
         "Y",
         &y_buf,
-        scene.editing_field.as_deref() == Some("ty"),
-        scene.edit_state.cursor_visible,
+        y_focused,
+        y_focused,
         scene.edit_state.cursor_pos,
         scene.edit_state.selection(),
         scene.edit_state.all_selected,
+        theme,
     );
     if dc.gui.button(
         dc.font,
@@ -457,6 +483,7 @@ pub fn draw(dc: &mut DrawContext<'_, '_>, right_w: f32, scene: &mut SceneState) 
     } else {
         format!("{:.0}", sel_w)
     };
+    let w_focused = scene.editing_field.as_deref() == Some("tw");
     widget_editor::draw_number_row(
         dc,
         panel_x,
@@ -466,11 +493,12 @@ pub fn draw(dc: &mut DrawContext<'_, '_>, right_w: f32, scene: &mut SceneState) 
         my,
         "W",
         &w_buf,
-        scene.editing_field.as_deref() == Some("tw"),
-        scene.edit_state.cursor_visible,
+        w_focused,
+        w_focused, // simplified for now
         scene.edit_state.cursor_pos,
         scene.edit_state.selection(),
         scene.edit_state.all_selected,
+        theme,
     );
     if dc.gui.button(
         dc.font,
@@ -510,6 +538,7 @@ pub fn draw(dc: &mut DrawContext<'_, '_>, right_w: f32, scene: &mut SceneState) 
     } else {
         format!("{:.0}", sel_h)
     };
+    let h_focused = scene.editing_field.as_deref() == Some("th");
     widget_editor::draw_number_row(
         dc,
         panel_x,
@@ -519,11 +548,12 @@ pub fn draw(dc: &mut DrawContext<'_, '_>, right_w: f32, scene: &mut SceneState) 
         my,
         "H",
         &h_buf,
-        scene.editing_field.as_deref() == Some("th"),
-        scene.edit_state.cursor_visible,
+        h_focused,
+        h_focused,
         scene.edit_state.cursor_pos,
         scene.edit_state.selection(),
         scene.edit_state.all_selected,
+        theme,
     );
     if dc.gui.button(
         dc.font,
@@ -558,14 +588,14 @@ pub fn draw(dc: &mut DrawContext<'_, '_>, right_w: f32, scene: &mut SceneState) 
     cursor_y += ROW_H;
 
     // -- Properties section ---------------------------------------------------
-    widget_editor::draw_properties(dc, scene, panel_x, right_w, cursor_y);
+    widget_editor::draw_properties(dc, scene, panel_x, right_w, cursor_y, theme, cp);
 
     dc.gui.pop_clip();
 }
 
 // ── Background / border ───────────────────────────────────────────────────────
 
-pub fn draw_background(dc: &mut DrawContext<'_, '_>, right_w: f32) {
+pub fn draw_background(dc: &mut DrawContext<'_, '_>, right_w: f32, theme: &Theme) {
     let (win_w, win_h) = dc.ctx.window_size;
     let right_x = win_w as f32 - right_w;
     dc.gui.rect(
@@ -573,13 +603,13 @@ pub fn draw_background(dc: &mut DrawContext<'_, '_>, right_w: f32) {
         TOP_H,
         right_w,
         win_h as f32 - TOP_H,
-        AppColor::hex("#252526").to_linear_f32(),
+        ThemeRegistry::hex_to_f32(&theme.colors.surface),
     );
 }
 
-pub fn draw_border(dc: &mut DrawContext<'_, '_>, right_w: f32) {
+pub fn draw_border(dc: &mut DrawContext<'_, '_>, right_w: f32, theme: &Theme) {
     let (win_w, win_h) = dc.ctx.window_size;
     let right_x = win_w as f32 - right_w;
     dc.gui
-        .rect(right_x, TOP_H, 2.0, win_h as f32 - TOP_H, c_border());
+        .rect(right_x, TOP_H, 2.0, win_h as f32 - TOP_H, c_border(theme));
 }

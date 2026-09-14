@@ -4,10 +4,11 @@
 // section: four H-align buttons, four V-align buttons, optional custom-value
 // sliders + text fields + pivot sliders.
 
-use ferrous_app::{Color as AppColor, DrawContext, MouseButton};
+use ferrous_engine::{Color as AppColor, DrawContext, MouseButton};
 
 use super::shared::{draw_row_label, draw_section, LABEL_W, ROW_H, ROW_PAD_X, SECTION_H};
 use crate::scene::{HAlign, SceneState, VAlign};
+use crate::theme::{Theme, ThemeRegistry};
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
 
@@ -18,8 +19,9 @@ pub fn draw(
     right_w: f32,
     cy: &mut f32,
     selected_id: u32,
+    theme: &Theme,
 ) {
-    draw_section(dc, panel_x, *cy, right_w, "Label Align");
+    draw_section(dc, panel_x, *cy, right_w, "Label Align", theme);
     *cy += SECTION_H;
 
     let selected = match scene.selected() {
@@ -74,6 +76,7 @@ pub fn draw(
                 w.props.label_h_align = new;
             }
         },
+        theme,
     );
     *cy += ROW_H;
 
@@ -105,6 +108,7 @@ pub fn draw(
             |w: &mut crate::scene::PlacedWidget| {
                 w.props.label_h_custom_pct = !w.props.label_h_custom_pct;
             },
+            theme,
         );
         draw_pivot_row(
             dc,
@@ -128,6 +132,7 @@ pub fn draw(
                     };
                 }
             },
+            theme,
         );
     }
 
@@ -162,6 +167,7 @@ pub fn draw(
                 w.props.label_v_align = new;
             }
         },
+        theme,
     );
     *cy += ROW_H;
 
@@ -193,6 +199,7 @@ pub fn draw(
             |w: &mut crate::scene::PlacedWidget| {
                 w.props.label_v_custom_pct = !w.props.label_v_custom_pct;
             },
+            theme,
         );
         draw_pivot_row(
             dc,
@@ -216,6 +223,7 @@ pub fn draw(
                     };
                 }
             },
+            theme,
         );
     }
 }
@@ -392,8 +400,9 @@ fn draw_align_buttons<A: Copy>(
     active_idx: usize,
     make_align: impl Fn(usize) -> A,
     mut apply: impl FnMut(A),
+    theme: &Theme,
 ) {
-    draw_row_label(dc, panel_x, cy, labels[0]); // reuse as axis label is already drawn by caller
+    draw_row_label(dc, panel_x, cy, labels[0], theme); // reuse as axis label is already drawn by caller
     let btn_area_x = panel_x + ROW_PAD_X + LABEL_W + 2.0;
     let avail_w = right_w - ROW_PAD_X * 2.0 - LABEL_W - 2.0;
     let bw = (avail_w / labels.len() as f32).floor() - 1.0;
@@ -403,14 +412,16 @@ fn draw_align_buttons<A: Copy>(
         let bx = btn_area_x + i as f32 * (bw + 1.0);
         let is_active = i == active_idx;
         let base_col = if is_active {
-            AppColor::hex("#6C63FF").to_linear_f32()
+            ThemeRegistry::hex_to_f32(&theme.colors.accent)
         } else {
-            AppColor::hex("#2D2D30").to_linear_f32()
+            ThemeRegistry::hex_to_f32(&theme.colors.surface)
         };
         let hover_col = if is_active {
-            AppColor::hex("#8880FF").to_linear_f32()
+            let mut c = ThemeRegistry::hex_to_f32(&theme.colors.accent);
+            c[0] += 0.1; c[1] += 0.1; c[2] += 0.1;
+            c
         } else {
-            AppColor::hex("#3E3E42").to_linear_f32()
+            ThemeRegistry::hex_to_f32(&theme.colors.secondary)
         };
         if dc.gui.button_colored(
             dc.font, bx, by, bw, bh, lbl, mx, my, clicked, base_col, hover_col,
@@ -437,6 +448,7 @@ fn draw_custom_val_row(
     widget_dim: f32,
     mut apply_val: impl FnMut(&mut crate::scene::PlacedWidget, f32),
     mut toggle_pct: impl FnMut(&mut crate::scene::PlacedWidget),
+    theme: &Theme,
 ) {
     let toggle_w = 28.0_f32;
     let field_w = 46.0_f32;
@@ -447,7 +459,7 @@ fn draw_custom_val_row(
     let field_h = ROW_H - 6.0;
     let by = *cy + 3.0;
 
-    draw_row_label(dc, panel_x, *cy, row_label);
+    draw_row_label(dc, panel_x, *cy, row_label, theme);
 
     let max_val = if is_pct {
         100.0_f32
@@ -462,21 +474,21 @@ fn draw_custom_val_row(
         slider_mid_y,
         slider_w,
         4.0,
-        AppColor::hex("#3E3E42").to_linear_f32(),
+        ThemeRegistry::hex_to_f32(&theme.colors.secondary),
     );
     dc.gui.rect(
         slider_x,
         slider_mid_y,
         t * slider_w,
         4.0,
-        AppColor::hex("#4A4580").to_linear_f32(),
+        ThemeRegistry::hex_to_f32(&theme.colors.accent),
     );
     dc.gui.rect(
         slider_x + t * slider_w - 5.0,
         by,
         10.0,
         field_h,
-        AppColor::hex("#6C63FF").to_linear_f32(),
+        ThemeRegistry::hex_to_f32(&theme.colors.accent),
     );
 
     let focused = scene.editing_field.as_deref() == Some(field_key);
@@ -496,19 +508,19 @@ fn draw_custom_val_row(
     let buf = format!("{:.1}", current_val);
     let val_str: &str = if focused { &scene.edit_buffer } else { &buf };
     let bg = if focused {
-        AppColor::hex("#1E3A5F").to_linear_f32()
+        ThemeRegistry::hex_to_f32(&theme.colors.accent)
     } else {
-        AppColor::hex("#191919").to_linear_f32()
+        ThemeRegistry::hex_to_f32(&theme.colors.surface)
     };
     let border = if focused {
-        Some(AppColor::hex("#0078D4").to_linear_f32())
+        Some(ThemeRegistry::hex_to_f32(&theme.colors.accent))
     } else {
         None
     };
     let fg = if focused {
         [1.0f32; 4]
     } else {
-        AppColor::hex("#DDDDDD").to_linear_f32()
+        ThemeRegistry::hex_to_f32(&theme.colors.text)
     };
     let sel_col = [0.0f32, 0.47, 0.83, 0.35];
     let eff_sel = if scene.edit_state.all_selected && !val_str.is_empty() {
@@ -546,8 +558,8 @@ fn draw_custom_val_row(
         mx,
         my,
         clicked,
-        AppColor::hex("#3E3E42").to_linear_f32(),
-        AppColor::hex("#555559").to_linear_f32(),
+        ThemeRegistry::hex_to_f32(&theme.colors.surface),
+        ThemeRegistry::hex_to_f32(&theme.colors.secondary),
     ) {
         if let Some(w) = scene.widgets.iter_mut().find(|w| w.id == selected_id) {
             toggle_pct(w);
@@ -569,6 +581,7 @@ fn draw_pivot_row<F>(
     field_key: &str,
     pivot_val: f32,
     mut apply: F,
+    theme: &Theme,
 ) where
     F: FnMut(&mut crate::scene::PlacedWidget, f32),
 {
@@ -579,28 +592,28 @@ fn draw_pivot_row<F>(
     let slider_h = ROW_H - 6.0;
     let sy = *cy + 3.0;
 
-    draw_row_label(dc, panel_x, *cy, row_label);
+    draw_row_label(dc, panel_x, *cy, row_label, theme);
 
     dc.gui.rect(
         piv_slider_x,
         sy + slider_h * 0.5 - 2.0,
         piv_slider_w,
         4.0,
-        AppColor::hex("#3E3E42").to_linear_f32(),
+        ThemeRegistry::hex_to_f32(&theme.colors.secondary),
     );
     dc.gui.rect(
         piv_slider_x,
         sy + slider_h * 0.5 - 2.0,
         pivot_val * piv_slider_w,
         4.0,
-        AppColor::hex("#4A4580").to_linear_f32(),
+        ThemeRegistry::hex_to_f32(&theme.colors.accent),
     );
     dc.gui.rect(
         piv_slider_x + pivot_val * piv_slider_w - 5.0,
         sy,
         10.0,
         slider_h,
-        AppColor::hex("#6C63FF").to_linear_f32(),
+        ThemeRegistry::hex_to_f32(&theme.colors.accent),
     );
 
     let focused = scene.editing_field.as_deref() == Some(field_key);
@@ -620,21 +633,24 @@ fn draw_pivot_row<F>(
     let buf = format!("{:.2}", pivot_val);
     let piv_str: &str = if focused { &scene.edit_buffer } else { &buf };
     let bg = if focused {
-        AppColor::hex("#1E3A5F").to_linear_f32()
+        let mut c = ThemeRegistry::hex_to_f32(&theme.colors.accent);
+        c[3] = 0.3;
+        c
     } else {
-        AppColor::hex("#191919").to_linear_f32()
+        ThemeRegistry::hex_to_f32(&theme.colors.surface)
     };
     let border = if focused {
-        Some(AppColor::hex("#0078D4").to_linear_f32())
+        Some(ThemeRegistry::hex_to_f32(&theme.colors.accent))
     } else {
         None
     };
     let fg = if focused {
-        [1.0f32; 4]
+        ThemeRegistry::hex_to_f32(&theme.colors.text)
     } else {
-        AppColor::hex("#DDDDDD").to_linear_f32()
+        ThemeRegistry::hex_to_f32(&theme.colors.text_dim)
     };
-    let sel_col = [0.0f32, 0.47, 0.83, 0.35];
+    let mut sel_col = ThemeRegistry::hex_to_f32(&theme.colors.accent);
+    sel_col[3] = 0.35;
     let eff_sel = if scene.edit_state.all_selected && !piv_str.is_empty() {
         Some((0usize, piv_str.len()))
     } else {

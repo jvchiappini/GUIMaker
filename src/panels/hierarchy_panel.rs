@@ -1,6 +1,6 @@
-use ferrous_app::{AppContext, Color as AppColor, DrawContext, MouseButton};
+use ferrous_engine::{AppContext, Color as AppColor, DrawContext, MouseButton};
 
-use crate::{scene::SceneState, TOP_H};
+use crate::{scene::SceneState, TOP_H, theme::{Theme, ThemeRegistry}};
 
 // constants are duplicated from left_panel; keeping them local avoids
 // making the original ones public and keeps the module self-contained.
@@ -43,36 +43,57 @@ pub fn update_hierarchy(
     }
 
     if lmb_pressed && in_panel {
-        // pointer must be below the tab bar
         let content_top = TOP_H + TAB_H;
-        if my < content_top {
-            return;
-        }
+        if my < content_top { return; }
 
         let local_y = my - content_top + palette_state.hierarchy_scroll_y;
         let mut cursor_y = 4.0_f32;
 
-        // collect ids in reverse order (same as draw_hierarchy) so that the
-        // click Y positions match the rendered row positions
-        let ids: Vec<u32> = scene.widgets.iter().rev().map(|w| w.id).collect();
-        for id in ids {
-            if local_y >= cursor_y && local_y < cursor_y + ITEM_H {
-                // eye icon region on the right
-                let eye_x = left_w - 2.0 - 26.0;
-                if mx >= eye_x && mx < left_w - 4.0 {
-                    if let Some(w) = scene.widgets.iter_mut().find(|w| w.id == id) {
-                        w.props.visible = !w.props.visible;
-                    }
-                } else {
-                    let prev = scene.selected_id;
-                    scene.selected_id = Some(id);
-                    if prev != Some(id) {
-                        scene.sync_prop_strings();
-                    }
+        let mut id_at_y = None;
+        fn collect_click_ids(scene: &SceneState, parent_id: Option<u32>, cursor_y: &mut f32, local_y: f32, id_at_y: &mut Option<u32>) {
+            // Iteramos en orden inverso de Z-order (rev) para que coincida con el dibujo
+            let children: Vec<u32> = scene.widgets.iter().rev().filter(|w| w.parent_id == parent_id).map(|w| w.id).collect();
+            for id in children {
+                if local_y >= *cursor_y && local_y < *cursor_y + ITEM_H {
+                    *id_at_y = Some(id);
                 }
-                break;
+                *cursor_y += ITEM_H + 2.0;
+                
+                // Si este ya fue el clickeado, no seguimos buscando hijos (o sí, pero id_at_y ya está seteado)
+                if id_at_y.is_some() { return; }
+
+                collect_click_ids(scene, Some(id), cursor_y, local_y, id_at_y);
+                if id_at_y.is_some() { return; }
             }
-            cursor_y += ITEM_H + 2.0;
+        }
+
+        collect_click_ids(scene, None, &mut cursor_y, local_y, &mut id_at_y);
+
+        if let Some(id) = id_at_y {
+            // Eye button (visibility)
+            let eye_x = left_w - 28.0;
+            // Move button (up/down)
+            let btn_w = 20.0;
+            let up_x = left_w - 28.0 - btn_w - 4.0;
+            let down_x = up_x - btn_w - 4.0;
+
+            if mx >= eye_x && mx < left_w - 4.0 {
+                if let Some(w) = scene.widgets.iter_mut().find(|w| w.id == id) {
+                    w.props.visible = !w.props.visible;
+                }
+            } else if mx >= up_x && mx < up_x + btn_w {
+                scene.selected_id = Some(id);
+                scene.move_up();
+            } else if mx >= down_x && mx < down_x + btn_w {
+                scene.selected_id = Some(id);
+                scene.move_down();
+            } else {
+                let prev = scene.selected_id;
+                scene.selected_id = Some(id);
+                if prev != Some(id) {
+                    scene.sync_prop_strings();
+                }
+            }
         }
     }
 }
@@ -88,9 +109,10 @@ pub fn draw_hierarchy(
     content_h: f32,
     mx: f32,
     my: f32,
+    theme: &Theme,
 ) {
     let scroll = palette_state.hierarchy_scroll_y;
-    let mut cursor_y = content_top + 4.0 - scroll;
+    let cursor_y = content_top + 4.0 - scroll;
     let eye_x = left_w - 2.0 - 26.0;
 
     if scene.widgets.is_empty() {
@@ -99,85 +121,105 @@ pub fn draw_hierarchy(
             "No widgets in scene",
             [ITEM_PAD_X, content_top + 16.0],
             11.0,
-            AppColor::hex("#555555").to_linear_f32(),
+            ThemeRegistry::hex_to_f32(&theme.colors.text_dim),
         );
         return;
     }
 
-    // Draw in reverse so the "top" widget in Z-order appears first
-    for w in scene.widgets.iter().rev() {
-        if cursor_y + ITEM_H < content_top || cursor_y > content_top + content_h {
-            cursor_y += ITEM_H + 2.0;
-            continue;
+    // Recursive draw function
+    fn draw_tree_recursive(
+        dc: &mut DrawContext<'_, '_>,
+        scene: &SceneState,
+        parent_id: Option<u32>,
+        left_w: f32,
+        cursor_y: &mut f32,
+        content_top: f32,
+        content_h: f32,
+        mx: f32,
+        my: f32,
+        theme: &Theme,
+        depth: usize,
+    ) {
+        // Obtenemos hijos y los dibujamos en Z-order invertido
+        let children: Vec<&crate::scene::PlacedWidget> = scene.widgets.iter().rev().filter(|w| w.parent_id == parent_id).collect();
+        
+        for w in children {
+            let item_y = *cursor_y;
+            *cursor_y += ITEM_H + 2.0;
+
+            // Skip if out of view
+            if item_y + ITEM_H < content_top || item_y > content_top + content_h {
+                // Sigue dibujando hijos aunque el padre sea invisible (para ver el scroll correcto)
+                draw_tree_recursive(dc, scene, Some(w.id), left_w, cursor_y, content_top, content_h, mx, my, theme, depth + 1);
+                continue;
+            }
+
+            let is_selected = scene.selected_id == Some(w.id);
+            let row_hovered = mx >= 0.0 && mx < left_w - 2.0 && my >= item_y && my < item_y + ITEM_H;
+
+            // Row background
+            let bg = if is_selected {
+                let mut c = ThemeRegistry::hex_to_f32(&theme.colors.accent);
+                c[3] = 0.4;
+                c
+            } else if row_hovered {
+                let mut c = ThemeRegistry::hex_to_f32(&theme.colors.primary);
+                c[3] = 0.2;
+                c
+            } else {
+                ThemeRegistry::hex_to_f32(&theme.colors.surface)
+            };
+            dc.gui.rect(0.0, item_y, left_w - 2.0, ITEM_H, bg);
+
+            // Left colour bar
+            dc.gui.rect(0.0, item_y + 3.0, 3.0, ITEM_H - 6.0, w.kind.color());
+
+            // Indentation
+            let indent = depth as f32 * 12.0;
+
+            // Widget name
+            let label = if !w.props.label.is_empty() && w.props.label != w.kind.display_name() {
+                format!("{} — {}", w.kind.display_name(), &w.props.label)
+            } else {
+                w.kind.display_name().to_string()
+            };
+
+            let text_col = ThemeRegistry::hex_to_f32(&theme.colors.text);
+            dc.gui.draw_text(dc.font, &label, [ITEM_PAD_X + 8.0 + indent, item_y + 7.0], 9.0, text_col);
+
+            // Eye / Visibility
+            let eye_x = left_w - 28.0;
+            let eye_hovered = mx >= eye_x && mx < left_w - 4.0 && my >= item_y && my < item_y + ITEM_H;
+            let eye_col = if eye_hovered {
+                ThemeRegistry::hex_to_f32(&theme.colors.text)
+            } else if w.props.visible {
+                ThemeRegistry::hex_to_f32(&theme.colors.accent)
+            } else {
+                ThemeRegistry::hex_to_f32(&theme.colors.text_dim)
+            };
+            let effectively_visible = scene.is_effectively_visible(w.id);
+            let eye_txt = if !w.props.visible { "HID" } else if !effectively_visible { "I-HI" } else { "VIS" };
+            dc.gui.draw_text(dc.font, eye_txt, [eye_x, item_y + 7.0], 9.0, eye_col);
+
+            // Move buttons
+            let btn_w = 20.0;
+            let up_x = eye_x - btn_w - 4.0;
+            let down_x = up_x - btn_w - 4.0;
+            let up_h = mx >= up_x && mx < up_x + btn_w && my >= item_y && my < item_y + ITEM_H;
+            let down_h = mx >= down_x && mx < down_x + btn_w && my >= item_y && my < item_y + ITEM_H;
+
+            dc.gui.draw_text(dc.font, "UP", [up_x + 2.0, item_y + 7.0], 9.0, if up_h { ThemeRegistry::hex_to_f32(&theme.colors.accent) } else { ThemeRegistry::hex_to_f32(&theme.colors.text_dim) });
+            dc.gui.draw_text(dc.font, "DN", [down_x + 2.0, item_y + 7.0], 9.0, if down_h { ThemeRegistry::hex_to_f32(&theme.colors.accent) } else { ThemeRegistry::hex_to_f32(&theme.colors.text_dim) });
+
+            if !effectively_visible {
+                dc.gui.rect(ITEM_PAD_X + indent, item_y + ITEM_H * 0.5, left_w - 100.0 - indent, 1.0, ThemeRegistry::hex_to_f32(&theme.colors.text_dim));
+            }
+
+            // Draw children recursively
+            draw_tree_recursive(dc, scene, Some(w.id), left_w, cursor_y, content_top, content_h, mx, my, theme, depth + 1);
         }
-
-        let is_selected = scene.selected_id == Some(w.id);
-        let row_hovered =
-            mx >= 0.0 && mx < left_w - 2.0 && my >= cursor_y && my < cursor_y + ITEM_H;
-
-        // Row background
-        let bg = if is_selected {
-            [0.0_f32, 0.267, 0.467, 0.6] // blue tint
-        } else if row_hovered {
-            AppColor::hex("#37373D").to_linear_f32()
-        } else {
-            AppColor::hex("#252526").to_linear_f32()
-        };
-        dc.gui.rect(0.0, cursor_y, left_w - 2.0, ITEM_H, bg);
-
-        // Left colour bar
-        dc.gui
-            .rect(0.0, cursor_y + 3.0, 3.0, ITEM_H - 6.0, w.kind.color());
-
-        // Widget name (kind + label)
-        let label = if !w.props.label.is_empty() && w.props.label != w.kind.display_name() {
-            format!("{} — {}", w.kind.display_name(), &w.props.label)
-        } else {
-            w.kind.display_name().to_string()
-        };
-
-        // visible widgets are bright; hidden ones use the same colour but
-        // we'll also draw a strikethrough so they cannot be mistaken for gone
-        let text_col = AppColor::hex("#CCCCCC").to_linear_f32();
-        dc.gui.draw_text(
-            dc.font,
-            &label,
-            [ITEM_PAD_X + 8.0, cursor_y + 6.0],
-            11.0,
-            text_col,
-        );
-
-        // Eye icon (● = visible, ○ = hidden)
-        let eye_hovered =
-            mx >= eye_x && mx < left_w - 4.0 && my >= cursor_y && my < cursor_y + ITEM_H;
-        let eye_col = if eye_hovered {
-            AppColor::hex("#FFFFFF").to_linear_f32()
-        } else if w.props.visible {
-            AppColor::hex("#888888").to_linear_f32()
-        } else {
-            AppColor::hex("#555555").to_linear_f32()
-        };
-        let eye_sym = if w.props.visible { "●" } else { "○" };
-        dc.gui.draw_text(
-            dc.font,
-            eye_sym,
-            [eye_x + 4.0, cursor_y + 5.0],
-            11.0,
-            eye_col,
-        );
-
-        // indicate hidden state with a strike-through line
-        if !w.props.visible {
-            let line_y = cursor_y + ITEM_H * 0.5;
-            dc.gui.rect(
-                ITEM_PAD_X,
-                line_y,
-                left_w - 2.0 - ITEM_PAD_X * 2.0,
-                1.0,
-                AppColor::hex("#888888").to_linear_f32(),
-            );
-        }
-
-        cursor_y += ITEM_H + 2.0;
     }
+
+    let mut cursor_y = content_top + 4.0 - scroll;
+    draw_tree_recursive(dc, scene, None, left_w, &mut cursor_y, content_top, content_h, mx, my, theme, 0);
 }

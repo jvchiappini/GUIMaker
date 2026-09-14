@@ -3,11 +3,12 @@
 // Layout constants, colour utilities, and primitive row renderers used by
 // every per-widget module and by right_panel / canvas.
 
-use ferrous_app::{Color as AppColor, DrawContext};
-use ferrous_gui::GuiBatch;
-use ferrous_ui_core::Rect;
+use ferrous_engine::{Color as AppColor, DrawContext};
+use ferrous_gui::{GuiBatch, GuiQuad, GRADIENT_BIT, GRADIENT_STRIP_BIT};
+use ferrous_ui_core::{Background, Rect};
 
 use crate::scene::{HAlign, PlacedWidget, VAlign};
+use crate::theme::{Theme, ThemeRegistry};
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 pub const HEADER_H: f32 = 34.0;
@@ -24,24 +25,29 @@ pub const LABEL_W: f32 = 54.0;
 pub fn default_row_colors(
     label: &str,
     focused: bool,
+    theme: &Theme,
 ) -> ([f32; 4], [f32; 4], Option<[f32; 4]>, [f32; 4]) {
-    const WHITE_ON_FOCUS: &[&str] = &["X", "Y", "W", "H", "Label", "Color"];
+    const WHITE_ON_FOCUS: &[&str] = &["X", "Y", "W", "H", "Label", "Color", "Background", "Top", "Right", "Bottom", "Left"];
     let text_col = if focused && WHITE_ON_FOCUS.contains(&label) {
-        [1.0; 4]
+        ThemeRegistry::hex_to_f32(&theme.colors.text)
     } else {
-        AppColor::hex("#DDDDDD").to_linear_f32()
+        ThemeRegistry::hex_to_f32(&theme.colors.text_dim)
     };
     let bg_col = if focused {
-        AppColor::hex("#1E3A5F").to_linear_f32()
+        let mut c = ThemeRegistry::hex_to_f32(&theme.colors.accent);
+        c[3] = 0.3;
+        c
     } else {
-        AppColor::hex("#191919").to_linear_f32()
+        ThemeRegistry::hex_to_f32(&theme.colors.surface)
     };
     let border_col = if focused {
-        Some(AppColor::hex("#0078D4").to_linear_f32())
+        Some(ThemeRegistry::hex_to_f32(&theme.colors.accent))
     } else {
         None
     };
-    (text_col, bg_col, border_col, [0.0, 0.47, 0.83, 0.35])
+    let mut sel = ThemeRegistry::hex_to_f32(&theme.colors.accent);
+    sel[3] = 0.35;
+    (text_col, bg_col, border_col, sel)
 }
 
 /// Parse `"#RRGGBB[AA]"` → linear `[f32; 4]`, falling back to `default`.
@@ -66,30 +72,30 @@ pub fn parse_hex_or(hex: &str, default: [f32; 4]) -> [f32; 4] {
 
 // ── Primitive row renderers ───────────────────────────────────────────────────
 
-pub fn draw_section(dc: &mut DrawContext<'_, '_>, panel_x: f32, y: f32, right_w: f32, title: &str) {
+pub fn draw_section(dc: &mut DrawContext<'_, '_>, panel_x: f32, y: f32, right_w: f32, title: &str, theme: &Theme) {
     dc.gui.rect(
         panel_x,
         y,
         right_w,
         SECTION_H,
-        AppColor::hex("#2D2D30").to_linear_f32(),
+        ThemeRegistry::hex_to_f32(&theme.colors.secondary),
     );
     dc.gui.draw_text(
         dc.font,
         title,
         [panel_x + ROW_PAD_X, y + 4.0],
         10.0,
-        AppColor::hex("#AAAAAA").to_linear_f32(),
+        ThemeRegistry::hex_to_f32(&theme.colors.text_dim),
     );
 }
 
-pub fn draw_row_label(dc: &mut DrawContext<'_, '_>, panel_x: f32, y: f32, label: &str) {
+pub fn draw_row_label(dc: &mut DrawContext<'_, '_>, panel_x: f32, y: f32, label: &str, theme: &Theme) {
     dc.gui.draw_text(
         dc.font,
         label,
         [panel_x + ROW_PAD_X, y + 7.0],
         10.0,
-        AppColor::hex("#CCCCCC").to_linear_f32(),
+        ThemeRegistry::hex_to_f32(&theme.colors.text_dim),
     );
 }
 
@@ -145,13 +151,14 @@ pub fn draw_number_row(
     cursor_pos: usize,
     sel: Option<(usize, usize)>,
     all_selected: bool,
+    theme: &Theme,
 ) {
-    draw_row_label(dc, panel_x, y, label);
+    draw_row_label(dc, panel_x, y, label, theme);
     let val_x = panel_x + ROW_PAD_X + LABEL_W;
     let val_w = right_w - ROW_PAD_X * 2.0 - LABEL_W - BTN_W * 2.0 - 8.0;
     if focused {
         let right_w_for_text = val_w + ROW_PAD_X * 2.0 + LABEL_W;
-        let (text_col, bg_col, border_col, sel_col) = default_row_colors(label, true);
+        let (text_col, bg_col, border_col, sel_col) = default_row_colors(label, true, theme);
         draw_text_row(
             dc,
             panel_x,
@@ -170,14 +177,14 @@ pub fn draw_number_row(
             sel_col,
         );
     } else {
-        let bg_col = AppColor::hex("#191919").to_linear_f32();
+        let bg_col = ThemeRegistry::hex_to_f32(&theme.colors.background);
         dc.gui.rect(val_x, y + 3.0, val_w, ROW_H - 6.0, bg_col);
         dc.gui.draw_text(
             dc.font,
             value,
             [val_x + 4.0, y + 7.0],
             10.0,
-            AppColor::hex("#DDDDDD").to_linear_f32(),
+            ThemeRegistry::hex_to_f32(&theme.colors.text),
         );
     }
 }
@@ -189,24 +196,59 @@ pub fn draw_info_row(
     right_w: f32,
     label: &str,
     value: &str,
+    theme: &Theme,
 ) {
-    let (text_col, bg_col, border_col, sel_col) = default_row_colors(label, false);
+    let (text_col, bg_col, border_col, sel_col) = default_row_colors(label, false, theme);
     draw_text_row(
         dc, panel_x, y, right_w, label, value, false, false, 0, None, false, text_col, bg_col,
         border_col, sel_col,
     );
 }
 
+pub fn draw_color_row(
+    dc: &mut DrawContext<'_, '_>,
+    panel_x: f32,
+    y: f32,
+    right_w: f32,
+    label: &str,
+    hex: &str,
+    theme: &Theme,
+) {
+    draw_row_label(dc, panel_x, y, label, theme);
+    let val_x = panel_x + ROW_PAD_X + LABEL_W;
+    let val_w = right_w - ROW_PAD_X * 2.0 - LABEL_W;
+
+    // Outer area
+    let bg_col = ThemeRegistry::hex_to_f32(&theme.colors.background);
+    dc.gui.rect(val_x, y + 3.0, val_w, ROW_H - 6.0, bg_col);
+
+    // Color preview
+    let p_s = ROW_H - 10.0;
+    let p_x = val_x + 4.0;
+    let p_y = y + 5.0;
+    let col = parse_hex_or(hex, [1.0, 1.0, 1.0, 1.0]);
+    dc.gui.rect(p_x, p_y, p_s, p_s, col);
+
+    // Hex text
+    dc.gui.draw_text(
+        dc.font,
+        hex,
+        [p_x + p_s + 8.0, y + 7.0],
+        10.0,
+        ThemeRegistry::hex_to_f32(&theme.colors.text),
+    );
+}
+
 // ── Canvas overlays ───────────────────────────────────────────────────────────
 
 /// Eight corner+midpoint resize handles around the selection rect.
-pub fn draw_selection_handles(dc: &mut DrawContext<'_, '_>, sx: f32, sy: f32, sw: f32, sh: f32) {
+pub fn draw_selection_handles(dc: &mut DrawContext<'_, '_>, sx: f32, sy: f32, sw: f32, sh: f32, theme: &Theme) {
     let hs = 6.0_f32;
     let hh = hs * 0.5;
     let mid_sx = sx + sw * 0.5;
     let mid_sy = sy + sh * 0.5;
-    let handle_col = [1.0_f32, 0.8, 0.0, 1.0];
-    let handle_bg = [0.1_f32, 0.1, 0.1, 1.0];
+    let handle_col = ThemeRegistry::hex_to_f32(&theme.colors.accent);
+    let handle_bg = ThemeRegistry::hex_to_f32(&theme.colors.surface);
     for (hx, hy) in [
         (sx - hh, sy - hh),
         (mid_sx - hh, sy - hh),
@@ -331,6 +373,78 @@ pub fn draw_pivot_overlay(
 /// Measures `text` using GuiBatch metrics.
 pub fn measure_text(dc: &DrawContext<'_, '_>, text: &str, size: f32) -> f32 {
     GuiBatch::measure_text(dc.font, text, size)
+}
+
+/// Draws a gradient background inside `(x, y, w, h)` with rounded `radii`.
+///
+/// - Linear gradients: one single full-rect quad with `GRADIENT_BIT`; the GPU
+///   hardware interpolates the two endpoint colors perfectly, with zero seams.
+/// - Radial / conic / procedural: `n_strips` thin strips with `GRADIENT_STRIP_BIT`;
+///   each strip encodes its full-rect x-offset so the SDF clips corners correctly.
+pub fn draw_gradient_rect(
+    dc: &mut DrawContext<'_, '_>,
+    bg: &Background,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    radii: [f32; 4],
+    n_strips: u32,
+) {
+    use ferrous_ui_core::Background;
+    if matches!(bg, Background::None) {
+        return;
+    }
+
+    // For linear gradients a single quad is perfect — GPU interpolates colors.
+    // Sample at u=0 and u=1 for the two endpoint colors.
+    let use_single_quad = matches!(bg, Background::LinearGradient { .. } | Background::Solid(_));
+
+    if use_single_quad {
+        let col_left = bg.sample(0.0, 0.5);
+        let col_right = bg.sample(1.0, 0.5);
+        let grad_flag = if let Background::LinearGradient { angle, .. } = bg {
+            let [dx, _] = angle.direction();
+            if dx.abs() > 0.5 { GRADIENT_BIT } else { GRADIENT_BIT | ferrous_gui::GRADIENT_V_BIT }
+        } else {
+            GRADIENT_BIT
+        };
+        dc.gui.push_quad(GuiQuad {
+            pos: [x, y],
+            size: [w, h],
+            uv0: [col_right[0], col_right[1]],
+            uv1: [col_right[2], col_right[3]],
+            color: col_left,
+            radii,
+            tex_index: 0,
+            flags: grad_flag,
+            color_b: [0.0; 4],
+            z_order: 0.0,
+            node_id: 0,
+        });
+    } else {
+        // Radial / conic / procedural: use many strips with GRADIENT_STRIP_BIT.
+        let n = n_strips.max(1);
+        let strip_w = w / n as f32;
+        for i in 0..n {
+            let u = (i as f32 + 0.5) / n as f32;
+            let col = bg.sample(u, 0.5);
+            let strip_offset_norm = i as f32 / n as f32;
+            dc.gui.push_quad(GuiQuad {
+                pos: [x + i as f32 * strip_w, y],
+                size: [strip_w + 0.5, h],
+                uv0: [strip_offset_norm, 0.0],
+                uv1: [w, h],
+                color: col,
+                radii,
+                tex_index: 0,
+                flags: GRADIENT_STRIP_BIT,
+                color_b: [0.0; 4],
+                z_order: 0.0,
+                node_id: 0,
+            });
+        }
+    }
 }
 
 /// Draw a simple clipped rect background (used by Label/generic).

@@ -1,60 +1,139 @@
 use std::sync::Arc;
-
-use ferrous_app::{AppContext, DrawContext, MouseButton};
+use ferrous_engine::{AppContext, DrawContext, MouseButton};
 use ferrous_assets::Texture2d;
+use ferrous_gui::UiSystem;
+use ferrous_ui_core::Background;
 
-use crate::{c_top, TOP_H};
+use crate::{c_top, GUIMakerApp, TOP_H};
+const TOP_BAR_LEFT_FIXED_W: f32 = 100.0 + 80.0 + 80.0 + 100.0;
+const TOP_BAR_RIGHT_FIXED_W: f32 = 60.0 + (TOP_H * 3.0);
 
-// ── Update ────────────────────────────────────────────────────────────────────
+pub struct ProjectButtons {
+    pub save_pressed: bool,
+    pub load_pressed: bool,
+    pub copy_pressed: bool,
+}
 
-/// Gestiona los botones de control de ventana (cerrar, maximizar, minimizar)
-/// y el drag de la barra superior.
-/// Devuelve `true` si se solicitó salir de la aplicación.
+pub fn build_top_bar(ui: &mut UiSystem<GUIMakerApp>, theme: &crate::theme::Theme, bar_width: f32) {
+    let top_col = crate::theme::ThemeRegistry::hex_to_f32(&theme.colors.top_bar);
+    let text_col = crate::theme::ThemeRegistry::hex_to_f32(&theme.colors.text);
+
+    let flat_button_bg = Background::Solid([top_col[0], top_col[1], top_col[2], 1.0]);
+    ui.panel()
+        .row()
+        .width(bar_width)
+        .height(TOP_H)
+        .color([0.0, 0.0, 0.0, 0.0].into())
+        .id("top_bar_container")
+        .spawn_with(ui, |ui: &mut UiSystem<GUIMakerApp>, _| {
+            ui.label("GUIMaker").color(text_col.into()).width(100.0).spawn(ui);
+                    ui.button("Guardar")
+                        .chrome(false)
+                        .border_radius(0.0)
+                        .background(flat_button_bg.clone())
+                        .width(80.0)
+                        .height(TOP_H)
+                        .on_click(|app| {
+                            app.app.project_buttons.save_pressed = true;
+                        })
+                        .spawn(ui);
+
+                    ui.button("Cargar")
+                        .chrome(false)
+                        .border_radius(0.0)
+                        .background(flat_button_bg.clone())
+                        .width(80.0)
+                        .height(TOP_H)
+                        .on_click(|app| {
+                            app.app.project_buttons.load_pressed = true;
+                        })
+                        .spawn(ui);
+
+                    ui.button("Export FUI")
+                        .chrome(false)
+                        .border_radius(0.0)
+                        .background(flat_button_bg.clone())
+                        .width(100.0)
+                        .height(TOP_H)
+                        .on_click(|app| {
+                            app.app.project_buttons.copy_pressed = true;
+                        })
+                        .spawn(ui);
+
+            ui.panel()
+                .fill()
+                .height(TOP_H)
+                .color([0.0, 0.0, 0.0, 0.0].into())
+                .id("top_bar_drag_area")
+                .spawn(ui);
+
+            ui.panel()
+                .row()
+                .width(TOP_BAR_RIGHT_FIXED_W)
+                .height(TOP_H)
+                .color([0.0, 0.0, 0.0, 0.0].into())
+                .spawn_with(ui, |ui, _| {
+                    ui.button("Config")
+                        .chrome(false)
+                        .border_radius(0.0)
+                        .background(flat_button_bg.clone())
+                        .width(60.0)
+                        .height(TOP_H)
+                        .on_click(|app| {
+                            app.app.settings_requested = true;
+                        })
+                        .spawn(ui);
+
+                    ui.button("–")
+                        .chrome(false)
+                        .border_radius(0.0)
+                        .background(flat_button_bg.clone())
+                        .id("top_btn_min")
+                        .width(TOP_H)
+                        .height(TOP_H)
+                        .on_click(|app| {
+                            app.app.window_minimize_requested = true;
+                        })
+                        .spawn(ui);
+
+                    ui.button("□")
+                        .chrome(false)
+                        .border_radius(0.0)
+                        .background(flat_button_bg.clone())
+                        .id("top_btn_max")
+                        .width(TOP_H)
+                        .height(TOP_H)
+                        .on_click(|app| {
+                            app.app.window_maximize_requested = true;
+                        })
+                        .spawn(ui);
+
+                    ui.button("×")
+                        .chrome(false)
+                        .border_radius(0.0)
+                        .background(flat_button_bg)
+                        .id("top_btn_close")
+                        .width(TOP_H)
+                        .height(TOP_H)
+                        .on_click(|app| {
+                            app.app.window_close_requested = true;
+                        })
+                        .spawn(ui);
+                });
+        });
+}
+
 pub fn update(
     ctx: &mut AppContext,
     drag_offset: &mut Option<(i32, i32)>,
-    is_maximized: &mut bool,
-    open_settings: &mut bool,
+    _is_maximized: &mut bool,
 ) -> bool {
     let (win_w, win_h) = ctx.window_size;
-    let ww = win_w as f32;
     let (mx, my) = ctx.input.mouse_pos_f32();
+    let ww = win_w as f32;
 
-    // ── Botón cerrar [×] ─────────────────────────────────────────────────────
-    let close_x = ww - TOP_H;
-    let over_close = mx >= close_x && mx <= ww && my >= 0.0 && my <= TOP_H;
-    if over_close && ctx.input.button_just_pressed(MouseButton::Left) {
-        return true;
-    }
-
-    // ── Botón maximizar [□] ──────────────────────────────────────────────────
-    let max_x = ww - TOP_H * 2.0;
-    let over_max = mx >= max_x && mx < close_x && my >= 0.0 && my <= TOP_H;
-    if over_max && ctx.input.button_just_pressed(MouseButton::Left) {
-        *is_maximized = !*is_maximized;
-        ctx.window.set_maximized(*is_maximized);
-    }
-
-    // ── Botón minimizar [–] ──────────────────────────────────────────────────
-    let min_x = ww - TOP_H * 3.0;
-    let over_min = mx >= min_x && mx < max_x && my >= 0.0 && my <= TOP_H;
-    if over_min && ctx.input.button_just_pressed(MouseButton::Left) {
-        ctx.window.set_minimized(true);
-    }
-
-    // ── Botón Config ─────────────────────────────────────────────────────────
-    // 4° slot; se evalúa después de los otros para no robar el evento
-    let gear_slot_x = ww - TOP_H * 4.0;
-    let over_gear = mx >= gear_slot_x && mx < min_x && my >= 0.0 && my <= TOP_H;
-    if over_gear && ctx.input.button_just_pressed(MouseButton::Left) {
-        *open_settings = !*open_settings;
-    }
-
-    // ── Drag de la barra ─────────────────────────────────────────────────────
-    // excluye los 4 slots de botones (cerrar+maximizar+minimizar+gear)
-    let drag_area_w = ww - TOP_H * 4.0;
-    let over_drag = mx >= 0.0
-        && mx < drag_area_w
+    let over_drag = mx >= TOP_BAR_LEFT_FIXED_W
+        && mx < ww - TOP_BAR_RIGHT_FIXED_W
         && my >= 0.0
         && my <= TOP_H
         && crate::resize_direction(mx, my, win_w, win_h).is_none();
@@ -65,9 +144,11 @@ pub fn update(
         let screen_my = win_pos.1 + my as i32;
         *drag_offset = Some((screen_mx - win_pos.0, screen_my - win_pos.1));
     }
+
     if ctx.input.button_just_released(MouseButton::Left) {
         *drag_offset = None;
     }
+
     if ctx.input.is_button_down(MouseButton::Left) {
         if let Some(offset) = *drag_offset {
             let win_pos = ctx.window_position().unwrap_or((0, 0));
@@ -80,8 +161,6 @@ pub fn update(
     false
 }
 
-// ── Draw ──────────────────────────────────────────────────────────────────────
-
 pub fn draw(
     dc: &mut DrawContext<'_, '_>,
     zoom: f32,
@@ -90,82 +169,35 @@ pub fn draw(
     icon_minimize: Option<Arc<Texture2d>>,
     icon_restore: Option<Arc<Texture2d>>,
     _show_settings: bool,
+    theme: &crate::theme::Theme,
 ) {
     let (win_w, _) = dc.ctx.window_size;
     let ww = win_w as f32;
-    let canvas_x = crate::LEFT_W;
-    let (mx, my) = dc.ctx.input.mouse_pos_f32();
 
-    dc.gui.rect(0.0, 0.0, ww, TOP_H, c_top());
-    // Línea de acento inferior: azul VSCode #007ACC, 2px
+    dc.gui.rect(0.0, 0.0, ww, TOP_H, c_top(theme));
     dc.gui.rect(
         0.0,
         TOP_H - 2.0,
         ww,
         2.0,
-        ferrous_app::Color::hex("#007ACC").to_linear_f32(),
+        ferrous_engine::Color::hex("#007ACC").to_linear_f32(),
     );
 
-    // texto / iconos usan este color por defecto
-    let text_color = ferrous_app::Color::hex("#CCCCCC").to_linear_f32();
-    // Logo / título — blanco VSCode
-    dc.gui
-        .draw_text(dc.font, "GUIMaker", [14.0, 12.0], 15.0, text_color);
-
-    // Indicador de zoom — azul acento VSCode
     let zoom_label = format!("zoom  {:.0}%", zoom * 100.0);
     dc.gui.draw_text(
         dc.font,
         &zoom_label,
-        [canvas_x + 8.0, 13.0],
+        [crate::LEFT_W + 8.0, 13.0],
         11.0,
-        ferrous_app::Color::hex("#3DC9B0").to_linear_f32(),
+        ferrous_engine::Color::hex("#3DC9B0").to_linear_f32(),
     );
 
-    // ── Botón Config ───────────────────────────────────────────
-    // 4° slot desde la derecha, igual que los botones de ventana
-    let min_x = ww - TOP_H * 3.0;
-    let gear_slot_x = ww - TOP_H * 4.0;
-    let over_gear = mx >= gear_slot_x && mx < min_x && my >= 0.0 && my <= TOP_H;
-    let c_gear = if over_gear {
-        ferrous_app::Color::hex("#505050").to_linear_f32()
-    } else {
-        c_top()
-    };
-    dc.gui.rect(gear_slot_x, 0.0, TOP_H, TOP_H, c_gear);
-    let gear_color = if over_gear {
-        ferrous_app::Color::hex("#3DC9B0").to_linear_f32()
-    } else {
-        text_color
-    };
-    dc.gui.draw_text(
-        dc.font,
-        "Config",
-        [gear_slot_x + 4.0, 13.0],
-        10.0,
-        gear_color,
-    );
-
-    // ── Cerrar [×] ───────────────────────────────────────────────────────────
-    let close_x = ww - TOP_H;
-    let hover_close = mx >= close_x && mx <= ww && my >= 0.0 && my <= TOP_H;
-    // botón de cerrar: fondo rojo en hover, normal es mismo color que la barra
-    let c_close = if hover_close {
-        ferrous_app::Color::hex("#F14C4C").to_linear_f32()
-    } else {
-        c_top()
-    };
-    dc.gui.rect_r(close_x, 0.0, TOP_H, TOP_H, c_close, 0.0);
+    let text_color = ferrous_engine::Color::hex("#CCCCCC").to_linear_f32();
     let icon_sz = TOP_H * 0.45;
     let icon_off = (TOP_H - icon_sz) * 0.5;
+
+    let close_x = ww - TOP_H;
     if let Some(tex) = icon_close {
-        // icono se tinea con texto normal, excepto cuando estamos en hover
-        let icon_color = if hover_close {
-            // conservamos la tonalidad rosada anterior
-            [1.0, 0.70, 0.78, 1.0]
-        } else {
-            text_color
-        };
         dc.gui.image(
             close_x + icon_off,
             icon_off,
@@ -174,30 +206,12 @@ pub fn draw(
             tex,
             [0.0, 0.0],
             [1.0, 1.0],
-            icon_color,
-        );
-    } else {
-        dc.gui.draw_text(
-            dc.font,
-            "×",
-            [close_x + TOP_H * 0.28, 9.0],
-            18.0,
-            [1.0, 0.70, 0.78, 1.0],
+            text_color,
         );
     }
 
-    // ── Maximizar [□ / ❐] ────────────────────────────────────────────────────
     let max_x = ww - TOP_H * 2.0;
-    let hover_max = mx >= max_x && mx < close_x && my >= 0.0 && my <= TOP_H;
-    let c_max = if hover_max {
-        ferrous_app::Color::hex("#505050").to_linear_f32()
-    } else {
-        c_top()
-    };
-    dc.gui.rect(max_x, 0.0, TOP_H, TOP_H, c_max);
-    // restore.svg sirve tanto para restaurar (maximizado) como para maximizar
     if let Some(tex) = icon_restore {
-        // dibujo normal, sin hover especial (solo cambia el símbolo textual)
         dc.gui.image(
             max_x + icon_off,
             icon_off,
@@ -215,19 +229,11 @@ pub fn draw(
             max_icon,
             [max_x + TOP_H * 0.22, 8.0],
             16.0,
-            ferrous_app::Color::hex("#CCCCCC").to_linear_f32(),
+            text_color,
         );
     }
 
-    // ── Minimizar [–] ────────────────────────────────────────────────────────
     let min_x = ww - TOP_H * 3.0;
-    let hover_min = mx >= min_x && mx < max_x && my >= 0.0 && my <= TOP_H;
-    let c_min = if hover_min {
-        ferrous_app::Color::hex("#505050").to_linear_f32()
-    } else {
-        c_top()
-    };
-    dc.gui.rect(min_x, 0.0, TOP_H, TOP_H, c_min);
     if let Some(tex) = icon_minimize {
         dc.gui.image(
             min_x + icon_off,
@@ -245,7 +251,7 @@ pub fn draw(
             "–",
             [min_x + TOP_H * 0.28, 9.0],
             18.0,
-            ferrous_app::Color::hex("#CCCCCC").to_linear_f32(),
+            text_color,
         );
     }
 }
