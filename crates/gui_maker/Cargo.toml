@@ -1,0 +1,25 @@
+[package]
+name = "gui_maker"
+version = "0.1.0"
+edition = "2021"
+description = "Immediate-mode GUI facade for Koncreta, built on FerrousEngine"
+
+[lib]
+name = "gui_maker"
+path = "src/lib.rs"
+
+[features]
+default = ["ferrous"]
+# FerrousEngine-backed implementation (the only backend used by Koncreta).
+ferrous = [
+    "dep:ferrous_engine",
+    "dep:ferrous_gui",
+    "dep:ferrous_ui_core",
+    "dep:ferrous_assets",
+]
+
+[dependencies]
+ferrous_engine = { path = "../../../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_engine", optional = true }
+ferrous_gui = { path = "../../../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_gui", features = ["assets"], optional = true }
+ferrous_ui_core = { path = "../../../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_ui_core", optional = true }
+ferrous_assets = { path = "../../../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_assets", features = ["gpu"], optional = true }

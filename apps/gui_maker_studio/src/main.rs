@@ -1,4 +1,4 @@
-﻿use gui_maker::GUIMakerApp;
+﻿use gui_maker_studio::GUIMakerApp;
 use ferrous_engine::{App, AppMode, Color as AppColor};
 
 fn main() {

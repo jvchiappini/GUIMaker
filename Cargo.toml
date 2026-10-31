@@ -1,39 +1,12 @@
-[package]
-name    = "gui_maker"
-version = "0.1.0"
-edition = "2021"
-
-[[bin]]
-name = "gui_maker"
-path = "src/main.rs"
-
-[lib]
-name = "gui_maker"
-path = "src/lib.rs"
-
-[dependencies]
-ferrous_engine  = { path = "../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_engine" }
-ferrous_gui      = { path = "../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_gui", features = ["assets"] }
-ferrous_ui_core  = { path = "../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_ui_core" }
-ferrous_layout   = { path = "../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_layout" }
-ferrous_assets   = { path = "../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_assets", features = ["gpu", "svg"] }
-ferrous_events   = { path = "../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_events" }
-winit           = "0.30"
-serde           = { version = "1.0", features = ["derive"] }
-serde_json      = "1.0"
-chrono          = "0.4"
-rfd             = "0.17"
-thiserror       = "1.0"
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-arboard          = "3.0"
-ferrous_reflection = { version = "0.1.0", path = "../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_reflection" }
-
 [workspace]
-# empty workspace table prevents Cargo from walking upward and assuming
-# this package belongs to the parent FerrousEngine workspace.  With this
-# in place `cargo run` will treat GUIMaker as a standalone crate while
-# still allowing path dependencies to the FerrousEngine crates.
+members = [
+    "crates/gui_maker",
+    "apps/gui_maker_studio",
+]
+resolver = "2"
+
+# `crates/gui_maker` is the library Koncreta consumes; `apps/gui_maker_studio`
+# is the desktop visual builder (parked while the UI toolkit is built).
 
 [profile.release]
 opt-level = 3

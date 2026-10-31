@@ -1,0 +1,31 @@
+[package]
+name = "gui_maker_studio"
+version = "0.1.0"
+edition = "2021"
+description = "GUIMaker desktop visual UI builder (parked)"
+
+[[bin]]
+name = "gui_maker"
+path = "src/main.rs"
+
+[lib]
+name = "gui_maker_studio"
+path = "src/lib.rs"
+
+[dependencies]
+ferrous_engine = { path = "../../../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_engine" }
+ferrous_gui = { path = "../../../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_gui", features = ["assets"] }
+ferrous_ui_core = { path = "../../../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_ui_core" }
+ferrous_layout = { path = "../../../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_layout" }
+ferrous_assets = { path = "../../../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_assets", features = ["gpu", "svg"] }
+ferrous_events = { path = "../../../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_events" }
+winit = "0.30"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = "0.4"
+rfd = "0.17"
+thiserror = "1.0"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+arboard = "3.0"
+ferrous_reflection = { version = "0.1.0", path = "../../../96a0b3c0-be13-4354-8674-72220ab22596/crates/ferrous_reflection" }
